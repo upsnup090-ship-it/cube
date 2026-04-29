@@ -1,0 +1,41 @@
+# Secrets
+.env
+.env.*
+*.key
+*.pem
+*.p12
+*.pfx
+secrets/
+credentials/
+private/
+
+# Dependencies / build output
+node_modules/
+.next/
+out/
+dist/
+build/
+coverage/
+
+# Local DB / generated DB files
+dev.db
+*.db
+*.sqlite
+*.sqlite3
+
+# Generated Prisma client
+src/generated/
+
+# TypeScript / logs
+*.tsbuildinfo
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# OS/editor
+.DS_Store
+Thumbs.db
+
+# Optional old/temporary agent artifacts
+-p/
