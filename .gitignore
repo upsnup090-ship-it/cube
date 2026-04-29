@@ -42,3 +42,4 @@ test-results/
 # Supabase local
 .supabase/
 /src/generated/prisma
+*.tsbuildinfo
