@@ -7,6 +7,8 @@ export default defineConfig({
   schema: "prisma/schema.prisma",
   migrations: {
     path: "prisma/migrations",
+    // Seed command for development using TypeScript seed script.
+    seed: "tsx prisma/seed.ts",
   },
   datasource: {
     url: "file:./dev.db",
