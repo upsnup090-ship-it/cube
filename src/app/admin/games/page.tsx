@@ -50,7 +50,11 @@ export default async function AdminGamesPage() {
             <tbody>
               {games.map((game) => (
                 <tr key={game.id} className="border-t">
-                  <td className="px-3 py-2">{game.id}</td>
+                  <td className="px-3 py-2">
+                    <Link href={`/admin/games/${game.id}`} className="text-blue-700 hover:underline">
+                      {game.id}
+                    </Link>
+                  </td>
                   <td className="px-3 py-2">{game.publicCode}</td>
                   <td className="px-3 py-2">{game.creatorUserId}</td>
                   <td className="px-3 py-2">{game.opponentUserId ?? "-"}</td>

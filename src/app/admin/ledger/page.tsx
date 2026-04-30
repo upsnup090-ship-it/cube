@@ -52,7 +52,11 @@ export default async function AdminLedgerPage() {
             <tbody>
               {entries.map((entry) => (
                 <tr key={entry.id} className="border-t">
-                  <td className="px-3 py-2">{entry.id}</td>
+                  <td className="px-3 py-2">
+                    <Link href={`/admin/ledger/${entry.id}`} className="text-blue-700 hover:underline">
+                      {entry.id}
+                    </Link>
+                  </td>
                   <td className="px-3 py-2">{entry.transactionId}</td>
                   <td className="px-3 py-2">{entry.userId}</td>
                   <td className="px-3 py-2">{entry.walletId}</td>

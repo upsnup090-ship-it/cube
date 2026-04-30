@@ -42,7 +42,11 @@ export default async function AdminWalletsPage() {
             <tbody>
               {wallets.map((wallet) => (
                 <tr key={wallet.id} className="border-t">
-                  <td className="px-3 py-2">{wallet.id}</td>
+                  <td className="px-3 py-2">
+                    <Link href={`/admin/wallets/${wallet.id}`} className="text-blue-700 hover:underline">
+                      {wallet.id}
+                    </Link>
+                  </td>
                   <td className="px-3 py-2">{wallet.userId}</td>
                   <td className="px-3 py-2">{wallet.currency}</td>
                   <td className="px-3 py-2">{wallet.availableBalance.toString()}</td>
