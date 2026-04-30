@@ -8,6 +8,8 @@
     "start": "next start",
     "lint": "eslint .",
     "type-check": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "smoke:services": "tsx src/server/services/service-smoke-check.ts",
     "smoke:telegram": "tsx src/server/telegram/telegram-webhook-smoke-check.ts",
     "prisma:validate": "npx prisma validate",
@@ -39,6 +41,7 @@
     "tailwindcss": "^4.1.0",
     "ts-node": "^10.9.2",
     "tsx": "^4.21.0",
-    "typescript": "^5.8.0"
+    "typescript": "^5.8.0",
+    "vitest": "^2.1.9"
   }
 }
