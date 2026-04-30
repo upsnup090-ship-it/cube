@@ -10,6 +10,7 @@
     "type-check": "tsc --noEmit",
     "smoke:services": "tsx src/server/services/service-smoke-check.ts",
     "smoke:telegram": "tsx src/server/telegram/telegram-webhook-smoke-check.ts",
+    "smoke:telegram:intents": "tsx src/server/telegram/telegram-intent-pipeline-smoke-check.ts",
     "prisma:validate": "npx prisma validate",
     "prisma:migrate": "npx prisma migrate dev",
     "prisma:seed": "npx prisma db seed",
