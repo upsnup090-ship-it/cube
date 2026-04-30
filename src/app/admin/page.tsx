@@ -44,6 +44,7 @@ export default async function AdminDashboard() {
           <li><Link href="/admin/games">/admin/games</Link></li>
           <li><Link href="/admin/ledger">/admin/ledger</Link></li>
           <li><Link href="/admin/audit">/admin/audit</Link></li>
+          <li><Link href="/admin/simulator">/admin/simulator</Link></li>
         </ul>
       </div>
     </main>
