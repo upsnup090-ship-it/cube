@@ -1,6 +1,7 @@
 import prisma from "../db/prisma";
 import { DiceRollSource, GameStatus, Prisma } from "../../generated/prisma";
 import { walletService } from "./wallet-service";
+import { withPublicCodeRetry } from "../utils/public-code";
 
 type CreateGameParams = {
   creatorUserId: number;
@@ -68,10 +69,6 @@ function toBigInt(value: bigint | number | string): bigint {
   return BigInt(trimmed);
 }
 
-function createPublicCode(): string {
-  return `G${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`.toUpperCase();
-}
-
 function isUniqueError(error: unknown): boolean {
   if (typeof error !== "object" || error === null) return false;
   const candidate = error as { code?: string };
@@ -130,46 +127,51 @@ export class GameService {
     let createdGameId: number | null = null;
 
     try {
-      const game = await prisma.$transaction(async (tx) => {
-        const created = await tx.game.create({
-          data: {
-            publicCode: createPublicCode(),
-            creatorUserId: params.creatorUserId,
-            status: GameStatus.waiting,
-            betAmount,
-            diceCount: params.diceCount,
-            expiresAt,
-          },
-        });
-
-        createdGameId = created.id;
-
-        await tx.gamePlayer.create({
-          data: {
-            gameId: created.id,
-            userId: params.creatorUserId,
-            role: "creator",
-            escrowLockedAmount: betAmount,
-          },
-        });
-
-        await tx.auditLog.create({
-          data: {
-            actorType: "user",
-            actorId: String(params.creatorUserId),
-            action: "create_game",
-            resourceType: "game",
-            resourceId: String(created.id),
-            metadata: {
-              idempotencyKey: params.idempotencyKey,
-              betAmount: betAmount.toString(),
+      // Retry the entire transaction if `publicCode` UNIQUE constraint fires.
+      // The transaction is small (3 inserts) and retrying it is cheaper and
+      // safer than reusing a transaction that has already had an aborted INSERT.
+      const game = await withPublicCodeRetry((publicCode) =>
+        prisma.$transaction(async (tx) => {
+          const created = await tx.game.create({
+            data: {
+              publicCode,
+              creatorUserId: params.creatorUserId,
+              status: GameStatus.waiting,
+              betAmount,
               diceCount: params.diceCount,
+              expiresAt,
             },
-          },
-        });
+          });
 
-        return created;
-      });
+          createdGameId = created.id;
+
+          await tx.gamePlayer.create({
+            data: {
+              gameId: created.id,
+              userId: params.creatorUserId,
+              role: "creator",
+              escrowLockedAmount: betAmount,
+            },
+          });
+
+          await tx.auditLog.create({
+            data: {
+              actorType: "user",
+              actorId: String(params.creatorUserId),
+              action: "create_game",
+              resourceType: "game",
+              resourceId: String(created.id),
+              metadata: {
+                idempotencyKey: params.idempotencyKey,
+                betAmount: betAmount.toString(),
+                diceCount: params.diceCount,
+              },
+            },
+          });
+
+          return created;
+        }),
+      );
 
       await walletService.lockEscrow({
         userId: params.creatorUserId,

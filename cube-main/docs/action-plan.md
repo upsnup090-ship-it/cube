@@ -168,7 +168,7 @@
 
 ---
 
-## P0-3. Retry-логика на коллизию `publicCode`
+## P0-3. Retry-логика на коллизию `publicCode` ✅ СДЕЛАНО (2026-05-04)
 
 **Цель:** избежать `P2002` Prisma unique violation при гонке двух `createGame` в одну миллисекунду.
 
@@ -178,11 +178,11 @@
 
 **Шаги:**
 
-- [ ] **0-3.1.** Установить `nanoid`:
+- [x] **0-3.1.** Установить `nanoid`:
   ```bash
   npm install nanoid
   ```
-- [ ] **0-3.2.** Заменить функцию `createPublicCode`:
+- [x] **0-3.2.** Заменить функцию `createPublicCode`:
   ```typescript
   import { customAlphabet } from "nanoid";
 
@@ -194,7 +194,7 @@
     return `G${generateCode()}`;
   }
   ```
-- [ ] **0-3.3.** Обернуть `tx.game.create` в retry на `P2002`:
+- [x] **0-3.3.** Обернуть `tx.game.create` в retry на `P2002`:
   ```typescript
   async function createGameWithRetry(
     tx: Prisma.TransactionClient,
@@ -214,8 +214,8 @@
     throw new Error("Failed to generate unique publicCode after retries");
   }
   ```
-- [ ] **0-3.4.** Использовать в `createGame`.
-- [ ] **0-3.5.** Добавить smoke-тест «1000 параллельных createGame не падают» (см. P1-2).
+- [x] **0-3.4.** Использовать в `createGame`.
+- [x] **0-3.5.** Добавить smoke-тест «1000 параллельных createGame не падают» (см. P1-2).
 
 **Acceptance criteria:**
 - 1000 одновременных вызовов `createGame` создают 1000 уникальных `publicCode` без падений.

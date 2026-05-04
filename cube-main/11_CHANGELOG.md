@@ -5,6 +5,8 @@
 ### Added
 - `src/middleware.ts` — HTTP Basic Auth для `/admin/*` с timing-safe сравнением (P0-1).
 - Audit-лог `webhook_unauthorized` для попыток вызова webhook с неверным/отсутствующим секретом (P0-2).
+- `src/server/utils/public-code.ts` — генератор кодов игры на базе nanoid и хелпер `withPublicCodeRetry` (P0-3).
+- Зависимость `nanoid@^5.1.0` в `package.json`.
 - `next.config.ts` — базовые security headers и `poweredByHeader: false`.
 - `.env.example` — шаблон с `ADMIN_USERNAME`, `ADMIN_PASSWORD`, `TELEGRAM_WEBHOOK_SECRET`, `TELEGRAM_BOT_TOKEN`.
 - `docs/action-plan.md` — подробный план работ по внешнему аудиту.
@@ -13,6 +15,9 @@
 ### Security
 - Маршрут `/admin/*` больше не доступен публично: production fail-closed (503 без env),
   dev-fallback (открыт без env), проверка креденшелов через timing-safe equal.
+- Сбор `publicCode` больше не выходит из коллизии P2002 под нагрузкой:
+  вместо `Date.now() + Math.random()` используется nanoid с алфавитом без путаемых
+  символов (`0`/`O`/`1`/`I`/`L`), пространство возросло с ~1.7M до ~8.5e11 комбинаций.
 - `POST /api/telegram/webhook` в production без `TELEGRAM_WEBHOOK_SECRET` возвращает 503
   (fail-closed). С заданным секретом проверяет заголовок `x-telegram-bot-api-secret-token`
   через timing-safe equal. Провальные попытки пишутся в audit-лог с редактированным префиксом
@@ -24,6 +29,8 @@
 - `README.md` — добавлен раздел "Доступ к админ-панели", обновлен блок "Переменные окружения".
 - `src/app/api/telegram/webhook/route.ts` — рефакторинг: проверка авторизации до парсинга тела,
   audit-лог провальных попыток, fail-closed в production.
+- `src/server/services/game-service.ts` — `createGame` обёрнут в `withPublicCodeRetry`,
+  старая функция `createPublicCode` удалена.
 
 ## [2026-04-30]
 
