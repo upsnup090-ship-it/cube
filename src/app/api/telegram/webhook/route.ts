@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { telegramWebhookService } from "@/server/telegram/telegram-webhook-service";
+import { routeTelegramParsedUpdate } from "@/server/telegram/telegram-intent-router";
 
 const TELEGRAM_SECRET_HEADER = "x-telegram-bot-api-secret-token";
 
@@ -25,6 +26,7 @@ export async function POST(request: NextRequest) {
   }
 
   const parsed = telegramWebhookService.parseUpdate(payload);
+  const routed = routeTelegramParsedUpdate(parsed);
 
   if (!configuredSecret) {
     return NextResponse.json({
@@ -32,6 +34,7 @@ export async function POST(request: NextRequest) {
       mode: "stub_no_secret_configured",
       handled: false,
       result: parsed.kind,
+      intent: routed.kind === "intent" ? routed.intent.kind : "ignored",
     });
   }
 
@@ -40,5 +43,6 @@ export async function POST(request: NextRequest) {
     mode: "stub_secret_verified",
     handled: false,
     result: parsed.kind,
+    intent: routed.kind === "intent" ? routed.intent.kind : "ignored",
   });
 }
