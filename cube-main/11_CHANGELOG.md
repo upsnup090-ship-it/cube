@@ -4,6 +4,7 @@
 
 ### Added
 - `src/middleware.ts` — HTTP Basic Auth для `/admin/*` с timing-safe сравнением (P0-1).
+- Audit-лог `webhook_unauthorized` для попыток вызова webhook с неверным/отсутствующим секретом (P0-2).
 - `next.config.ts` — базовые security headers и `poweredByHeader: false`.
 - `.env.example` — шаблон с `ADMIN_USERNAME`, `ADMIN_PASSWORD`, `TELEGRAM_WEBHOOK_SECRET`, `TELEGRAM_BOT_TOKEN`.
 - `docs/action-plan.md` — подробный план работ по внешнему аудиту.
@@ -12,11 +13,17 @@
 ### Security
 - Маршрут `/admin/*` больше не доступен публично: production fail-closed (503 без env),
   dev-fallback (открыт без env), проверка креденшелов через timing-safe equal.
+- `POST /api/telegram/webhook` в production без `TELEGRAM_WEBHOOK_SECRET` возвращает 503
+  (fail-closed). С заданным секретом проверяет заголовок `x-telegram-bot-api-secret-token`
+  через timing-safe equal. Провальные попытки пишутся в audit-лог с редактированным префиксом
+  предъявленного секрета (первые 4 символа + `***`).
 - Добавлены HTTP-заголовки: `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`,
   `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy` для camera/mic/geo.
 
 ### Changed
 - `README.md` — добавлен раздел "Доступ к админ-панели", обновлен блок "Переменные окружения".
+- `src/app/api/telegram/webhook/route.ts` — рефакторинг: проверка авторизации до парсинга тела,
+  audit-лог провальных попыток, fail-closed в production.
 
 ## [2026-04-30]
 

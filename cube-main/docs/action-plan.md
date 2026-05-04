@@ -103,7 +103,7 @@
 
 ---
 
-## P0-2. Безопасный Telegram webhook
+## P0-2. Безопасный Telegram webhook ✅ СДЕЛАНО (2026-05-04)
 
 **Цель:** запретить приём webhook-ов без `TELEGRAM_WEBHOOK_SECRET` в production. Сейчас при отсутствии переменной парсер просто работает в `stub_no_secret_configured`-режиме.
 
@@ -113,7 +113,7 @@
 
 **Шаги:**
 
-- [ ] **0-2.1.** Заменить блок проверки в `route.ts`:
+- [x] **0-2.1.** Заменить блок проверки в `route.ts`:
   ```typescript
   const configuredSecret = process.env.TELEGRAM_WEBHOOK_SECRET;
   const headerSecret = request.headers.get(TELEGRAM_SECRET_HEADER);
@@ -134,12 +134,12 @@
     );
   }
   ```
-- [ ] **0-2.2.** Добавить опциональную проверку Telegram IP-allowlist (для production):
+- [x] **0-2.2.** Добавить опциональную проверку Telegram IP-allowlist (для production):
   ```typescript
   const TELEGRAM_IP_RANGES = ["149.154.160.0/20", "91.108.4.0/22"];
   // helper isIpInCidr() — реализовать или взять npm-пакет ip-cidr.
   ```
-- [ ] **0-2.3.** Записать аудит-лог при провале проверки секрета:
+- [x] **0-2.3.** Записать аудит-лог при провале проверки секрета:
   ```typescript
   await prisma.auditLog.create({
     data: {
@@ -151,13 +151,13 @@
   });
   ```
   (только при наличии configuredSecret, чтобы не флудить лог в dev).
-- [ ] **0-2.4.** Обновить `.env.example`:
+- [x] **0-2.4.** Обновить `.env.example`:
   ```dotenv
   # Telegram — required in production
   TELEGRAM_WEBHOOK_SECRET=  # generate: openssl rand -hex 32
   TELEGRAM_BOT_TOKEN=       # from @BotFather
   ```
-- [ ] **0-2.5.** Прогнать `npm run smoke:telegram` — убедиться, что smoke-тесты не сломались.
+- [x] **0-2.5.** Прогнать `npm run smoke:telegram` — убедиться, что smoke-тесты не сломались.
 
 **Acceptance criteria:**
 - В production без `TELEGRAM_WEBHOOK_SECRET` запрос возвращает `503`.
