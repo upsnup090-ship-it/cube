@@ -1,11 +1,18 @@
 import prisma from "../db/prisma";
 import { telegramWebhookService } from "./telegram-webhook-service";
+import { readFile } from "node:fs/promises";
 
 type CheckResult = {
   name: string;
   passed: boolean;
   details: string;
 };
+
+async function readFixture(relativePath: string): Promise<unknown> {
+  const url = new URL(relativePath, import.meta.url);
+  const raw = await readFile(url, "utf8");
+  return JSON.parse(raw) as unknown;
+}
 
 async function main() {
   const checks: CheckResult[] = [];
@@ -24,52 +31,20 @@ async function main() {
     prisma.idempotencyKey.count(),
   ]);
 
-  const startResult = telegramWebhookService.parseUpdate({
-    update_id: 1,
-    message: {
-      message_id: 100,
-      from: { id: 42, username: "demo_user" },
-      chat: { id: 500 },
-      date: 1710000000,
-      text: "/start",
-    },
-  });
+  const startFixture = await readFixture("./fixtures/start-command.json");
+  const startResult = telegramWebhookService.parseUpdate(startFixture);
   add("Detect /start command", startResult.kind === "command", `kind=${startResult.kind}`);
 
-  const helpResult = telegramWebhookService.parseUpdate({
-    update_id: 2,
-    message: {
-      message_id: 101,
-      from: { id: 42 },
-      chat: { id: 500 },
-      date: 1710000001,
-      text: "/help",
-    },
-  });
+  const helpFixture = await readFixture("./fixtures/help-command.json");
+  const helpResult = telegramWebhookService.parseUpdate(helpFixture);
   add("Detect /help command", helpResult.kind === "command", `kind=${helpResult.kind}`);
 
-  const diceResult = telegramWebhookService.parseUpdate({
-    update_id: 3,
-    message: {
-      message_id: 102,
-      from: { id: 42 },
-      chat: { id: 500 },
-      date: 1710000002,
-      dice: { emoji: "🎲", value: 6 },
-    },
-  });
+  const diceFixture = await readFixture("./fixtures/dice-roll.json");
+  const diceResult = telegramWebhookService.parseUpdate(diceFixture);
   add("Detect dice payload", diceResult.kind === "dice", `kind=${diceResult.kind}`);
 
-  const unknownResult = telegramWebhookService.parseUpdate({
-    update_id: 4,
-    message: {
-      message_id: 103,
-      from: { id: 42 },
-      chat: { id: 500 },
-      date: 1710000003,
-      text: "hello there",
-    },
-  });
+  const unknownFixture = await readFixture("./fixtures/unknown-text.json");
+  const unknownResult = telegramWebhookService.parseUpdate(unknownFixture);
   add("Unknown text handling", unknownResult.kind === "unknown_text", `kind=${unknownResult.kind}`);
 
   const invalidResult = telegramWebhookService.parseUpdate({ foo: "bar" });
