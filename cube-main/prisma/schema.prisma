@@ -1,0 +1,224 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model User {
+  id                     Int      @id @default(autoincrement())
+  telegramUserId         String   @unique
+  username               String?
+  displayName            String?
+  status                 UserStatus @default(active)
+  regionCode             String?
+  ageConfirmed           Boolean? @default(false)
+  responsibleLimitPerDay BigInt?  @default(0)
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  wallet        Wallet?
+  games         Game[]        @relation("CreatorGames")
+  opponentGames Game[]        @relation("OpponentGames")
+  ledgerEntries LedgerEntry[]
+  gamePlayers   GamePlayer[]
+  diceRolls     DiceRoll[]
+
+  @@index([telegramUserId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+enum UserStatus {
+  active
+  blocked
+  under_review
+}
+
+model Wallet {
+  id               Int      @id @default(autoincrement())
+  userId           Int      @unique
+  currency         String   @default("COIN")
+  availableBalance BigInt   @default(0)
+  lockedBalance    BigInt   @default(0)
+  version          Int      @default(1)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  user          User          @relation(fields: [userId], references: [id])
+  ledgerEntries LedgerEntry[]
+
+  @@index([userId])
+}
+
+model LedgerEntry {
+  id             Int             @id @default(autoincrement())
+  transactionId  String
+  userId         Int
+  walletId       Int
+  gameId         Int?
+  entryType      LedgerEntryType
+  direction      LedgerDirection
+  amount         BigInt
+  currency       String          @default("COIN")
+  idempotencyKey String          @unique
+  metadata       Json?
+  createdAt      DateTime        @default(now())
+
+  user   User   @relation(fields: [userId], references: [id])
+  wallet Wallet @relation(fields: [walletId], references: [id])
+  game   Game?  @relation(fields: [gameId], references: [id])
+
+  @@index([userId])
+  @@index([walletId])
+  @@index([gameId])
+  @@index([transactionId])
+  @@index([idempotencyKey])
+  @@index([createdAt])
+}
+
+enum LedgerEntryType {
+  admin_credit
+  admin_debit
+  escrow_lock
+  escrow_release
+  payout_credit
+  refund_credit
+  rake_debit
+  adjustment
+}
+
+enum LedgerDirection {
+  debit
+  credit
+}
+
+model Game {
+  id             Int      @id @default(autoincrement())
+  publicCode     String   @unique
+  creatorUserId  Int
+  opponentUserId Int?
+  status         GameStatus @default(created)
+  betAmount      BigInt
+  currency       String   @default("COIN")
+  diceCount      Int
+  winnerUserId   Int?
+  loserUserId    Int?
+  resultReason   String?
+  expiresAt      DateTime
+  settledAt      DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  creator      User          @relation("CreatorGames", fields: [creatorUserId], references: [id])
+  opponent     User?         @relation("OpponentGames", fields: [opponentUserId], references: [id])
+  gamePlayers  GamePlayer[]
+  diceRolls    DiceRoll[]
+  ledgerEntries LedgerEntry[]
+
+  @@index([creatorUserId])
+  @@index([opponentUserId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+enum GameStatus {
+  created
+  waiting
+  matched
+  rolling
+  resolving
+  settled
+  cancelled
+  refunded
+  failed
+  under_review
+}
+
+model GamePlayer {
+  id                 Int         @id @default(autoincrement())
+  gameId             Int
+  userId             Int
+  role               PlayerRole
+  escrowLockedAmount BigInt      @default(0)
+  joinedAt           DateTime    @default(now())
+  cancelledAt        DateTime?
+
+  game  Game @relation(fields: [gameId], references: [id])
+  user  User @relation(fields: [userId], references: [id])
+
+  @@unique([gameId, userId])
+  @@index([gameId])
+  @@index([userId])
+}
+
+enum PlayerRole {
+  creator
+  opponent
+}
+
+model DiceRoll {
+  id              Int            @id @default(autoincrement())
+  gameId          Int
+  userId          Int
+  rollRound       Int
+  telegramChatId  String?
+  telegramMessageId String?
+  diceEmoji       String        @default("🎲")
+  diceValue       Int
+  diceCount       Int
+  totalValue      Int
+  source          DiceRollSource
+  rawPayload      Json?
+  createdAt       DateTime      @default(now())
+
+  game Game @relation(fields: [gameId], references: [id])
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([gameId])
+  @@index([userId])
+  @@index([createdAt])
+}
+
+enum DiceRollSource {
+  telegram_dice
+  admin_test
+  system_test
+}
+
+model IdempotencyKey {
+  key              String   @id
+  operation        String
+  resourceType     String
+  resourceId       String?
+  responseSnapshot Json?
+  createdAt        DateTime @default(now())
+
+  @@index([resourceId])
+  @@index([createdAt])
+}
+
+model AuditLog {
+  id           Int        @id @default(autoincrement())
+  actorType    ActorType
+  actorId      String?
+  action       String
+  resourceType String
+  resourceId   String?
+  metadata     Json?
+  createdAt    DateTime   @default(now())
+
+  @@index([actorId])
+  @@index([resourceType])
+  @@index([resourceId])
+  @@index([createdAt])
+}
+
+enum ActorType {
+  system
+  admin
+  user
+  telegram_webhook
+}
