@@ -164,10 +164,30 @@ export class TelegramWebhookHandler {
       return { status: "error", reason: "command_without_user_id", updateId };
     }
 
-    // Upsert user on any command
-    await this.upsertUser(message.from.id, message.from.username, updateId);
+    const user = await this.upsertUser(message.from.id, message.from.username, updateId);
 
-    // Commands are acknowledged but don't trigger game actions in 0.1
+    const responseText = command === "start"
+      ? "Добро пожаловать в CubeChat Dices. Бот готов к PvP dice flow. Отправьте /help для справки."
+      : "Доступные команды: /start — старт, /help — справка. Для игры используйте стандартный Telegram dice 🎲.";
+
+    const sendResult = await telegramWebhookService.sendMessage(message.chat.id, responseText);
+    await prisma.auditLog.create({
+      data: {
+        actorType: "telegram_webhook",
+        actorId: String(message.from.id),
+        action: "telegram_message_sent",
+        resourceType: "user",
+        resourceId: String(user.id),
+        metadata: {
+          updateId,
+          command,
+          chatId: message.chat.id,
+          text: responseText,
+          sendResult,
+        },
+      },
+    });
+
     return { status: "ok", action: `command_${command}`, updateId };
   }
 

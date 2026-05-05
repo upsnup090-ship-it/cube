@@ -33,6 +33,14 @@ pnpm-debug.log*
 
 # Nested repos
 repo/
+cube-main/
+
+# Local scratch / imported files
+cube-main.zip
+docs/mvp-decisions.md
+docs/project-plan.md
+src/app/admin/read-only-guard.ts
+src/middleware.ts
 
 # OS / editor
 .DS_Store

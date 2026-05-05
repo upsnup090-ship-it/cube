@@ -1,5 +1,15 @@
 import type { TelegramMessage, TelegramUpdate } from "./telegram-types";
 
+export type TelegramSendMessageResult =
+  | { ok: true; messageId?: number }
+  | { ok: false; error: string };
+
+export const DEFAULT_TELEGRAM_API_BASE_URL = "https://api.telegram.org";
+
+export function getTelegramApiBaseUrl(): string {
+  return process.env.TELEGRAM_API_BASE_URL ?? DEFAULT_TELEGRAM_API_BASE_URL;
+}
+
 // ─── Idempotency key ────────────────────────────────────────────────────────
 // Format: tg:update:<update_id>
 // Derived keys: tg:update:<update_id>:dice_roll, tg:update:<update_id>:user_upsert
@@ -179,6 +189,42 @@ export class TelegramWebhookService {
     }
 
     return { kind: "unknown_text", text: message.text, message };
+  }
+
+  async sendMessage(chatId: number, text: string): Promise<TelegramSendMessageResult> {
+    const token = process.env.TELEGRAM_BOT_TOKEN;
+    if (!token) {
+      return { ok: false, error: "TELEGRAM_BOT_TOKEN is not configured" };
+    }
+
+    const apiBaseUrl = getTelegramApiBaseUrl();
+    const response = await fetch(`${apiBaseUrl}/bot${token}/sendMessage`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ chat_id: chatId, text }),
+    });
+
+    const payload = await response.json().catch(() => null) as unknown;
+    if (!response.ok) {
+      return {
+        ok: false,
+        error: typeof payload === "object" && payload !== null && "description" in payload
+          ? String(payload.description)
+          : `Telegram API responded with ${response.status}`,
+      };
+    }
+
+    const messageId = typeof payload === "object"
+      && payload !== null
+      && "result" in payload
+      && typeof payload.result === "object"
+      && payload.result !== null
+      && "message_id" in payload.result
+      && typeof payload.result.message_id === "number"
+      ? payload.result.message_id
+      : undefined;
+
+    return { ok: true, messageId };
   }
 }
 
