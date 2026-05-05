@@ -18,6 +18,7 @@ const REQUIRED_PROD_VARS = [
   "ADMIN_PASSWORD",
 ] as const;
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const OPTIONAL_VARS = [
   "DIRECT_URL",
   "TELEGRAM_API_BASE_URL",
@@ -25,8 +26,11 @@ const OPTIONAL_VARS = [
   "TELEGRAM_PROXY_URL",
   "TELEGRAM_PROXY_KIND",
   "TRUST_PROXY",
+  "GAME_COMMISSION_BPS",
+  "GAME_COMMISSION_RECIPIENT_TELEGRAM_USER_ID",
   "SUPABASE_PROJECT_REF",
   "SUPABASE_SERVICE_ROLE_KEY",
+  "CRON_JOB_SECRET",
 ] as const;
 
 export function validateEnv(): EnvValidationResult {

@@ -5,13 +5,12 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
 }
 
 model User {
   id                     Int      @id @default(autoincrement())
   telegramUserId         String   @unique
+  telegramChatId         BigInt?
   username               String?
   displayName            String?
   status                 UserStatus @default(active)

@@ -52,8 +52,8 @@ async function getOrCreateWallet(userId: number): Promise<Wallet> {
       data: {
         userId,
         currency: "COIN",
-        availableBalance: BigInt(0),
-        lockedBalance: BigInt(0),
+        availableBalance: 0n,
+        lockedBalance: 0n,
       },
     });
   }
@@ -441,9 +441,180 @@ export class WalletService {
     return result;
   }
 
-  /**
-   * Payout — credit winnings to user's available balance.
-   */
+  async consumeLockedEscrow(params: WalletParamsWithGame): Promise<WalletResult> {
+    const amount = toBigInt(params.amount);
+    validateAmount(amount);
+
+    const wallet = await getOrCreateWallet(params.userId);
+
+    const existing = await prisma.ledgerEntry.findUnique({
+      where: { idempotencyKey: params.idempotencyKey },
+    });
+
+    if (existing) {
+      const currentWallet = await prisma.wallet.findUnique({
+        where: { id: existing.walletId },
+      });
+      return {
+        walletId: existing.walletId,
+        availableBalance: currentWallet!.availableBalance,
+        lockedBalance: currentWallet!.lockedBalance,
+        ledgerEntryId: existing.id,
+        transactionId: existing.transactionId,
+      };
+    }
+
+    const result = await prisma.$transaction(async (tx) => {
+      const currentWallet = await tx.wallet.findUnique({
+        where: { id: wallet.id },
+        select: { lockedBalance: true },
+      });
+
+      if (!currentWallet || currentWallet.lockedBalance < amount) {
+        throw new Error("Insufficient locked balance for escrow consumption");
+      }
+
+      const updatedWallet = await tx.wallet.update({
+        where: { id: wallet.id },
+        data: {
+          lockedBalance: {
+            decrement: amount,
+          },
+        },
+      });
+
+      const entry = await tx.ledgerEntry.create({
+        data: {
+          transactionId: `tx_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+          userId: params.userId,
+          walletId: wallet.id,
+          gameId: params.gameId,
+          entryType: "adjustment",
+          direction: "debit",
+          amount,
+          currency: "COIN",
+          idempotencyKey: params.idempotencyKey,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          metadata: (params.metadata ?? {}) as any,
+        },
+      });
+
+      await tx.auditLog.create({
+        data: {
+          actorType: "system",
+          actorId: "system",
+          action: "consume_locked_escrow",
+          resourceType: "wallet",
+          resourceId: String(wallet.id),
+          metadata: {
+            userId: params.userId,
+            gameId: params.gameId,
+            amount: amount.toString(),
+            idempotencyKey: params.idempotencyKey,
+            ...(params.metadata ?? {}),
+          },
+        },
+      });
+
+      return {
+        walletId: updatedWallet.id,
+        availableBalance: updatedWallet.availableBalance,
+        lockedBalance: updatedWallet.lockedBalance,
+        ledgerEntryId: entry.id,
+        transactionId: entry.transactionId,
+      };
+    });
+
+    return result;
+  }
+
+  async collectRakeFromLocked(params: WalletParamsWithGame): Promise<WalletResult> {
+    const amount = toBigInt(params.amount);
+    validateAmount(amount);
+
+    const wallet = await getOrCreateWallet(params.userId);
+
+    const existing = await prisma.ledgerEntry.findUnique({
+      where: { idempotencyKey: params.idempotencyKey },
+    });
+
+    if (existing) {
+      const currentWallet = await prisma.wallet.findUnique({
+        where: { id: existing.walletId },
+      });
+      return {
+        walletId: existing.walletId,
+        availableBalance: currentWallet!.availableBalance,
+        lockedBalance: currentWallet!.lockedBalance,
+        ledgerEntryId: existing.id,
+        transactionId: existing.transactionId,
+      };
+    }
+
+    const result = await prisma.$transaction(async (tx) => {
+      const currentWallet = await tx.wallet.findUnique({
+        where: { id: wallet.id },
+        select: { lockedBalance: true },
+      });
+
+      if (!currentWallet || currentWallet.lockedBalance < amount) {
+        throw new Error("Insufficient locked balance for rake collection");
+      }
+
+      const updatedWallet = await tx.wallet.update({
+        where: { id: wallet.id },
+        data: {
+          lockedBalance: {
+            decrement: amount,
+          },
+        },
+      });
+
+      const entry = await tx.ledgerEntry.create({
+        data: {
+          transactionId: `tx_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+          userId: params.userId,
+          walletId: wallet.id,
+          gameId: params.gameId,
+          entryType: "rake_debit",
+          direction: "debit",
+          amount,
+          currency: "COIN",
+          idempotencyKey: params.idempotencyKey,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          metadata: (params.metadata ?? {}) as any,
+        },
+      });
+
+      await tx.auditLog.create({
+        data: {
+          actorType: "system",
+          actorId: "system",
+          action: "collect_rake_from_locked",
+          resourceType: "wallet",
+          resourceId: String(wallet.id),
+          metadata: {
+            userId: params.userId,
+            gameId: params.gameId,
+            amount: amount.toString(),
+            idempotencyKey: params.idempotencyKey,
+            ...(params.metadata ?? {}),
+          },
+        },
+      });
+
+      return {
+        walletId: updatedWallet.id,
+        availableBalance: updatedWallet.availableBalance,
+        lockedBalance: updatedWallet.lockedBalance,
+        ledgerEntryId: entry.id,
+        transactionId: entry.transactionId,
+      };
+    });
+
+    return result;
+  }
+
   async payout(params: WalletParamsWithGame): Promise<WalletResult> {
     const amount = toBigInt(params.amount);
     validateAmount(amount);
@@ -526,9 +697,84 @@ export class WalletService {
     return result;
   }
 
-  /**
-   * Refund — return locked escrow funds to available balance.
-   */
+  async creditCommission(params: WalletParamsWithGame): Promise<WalletResult> {
+    const amount = toBigInt(params.amount);
+    validateAmount(amount);
+
+    const wallet = await getOrCreateWallet(params.userId);
+
+    const existing = await prisma.ledgerEntry.findUnique({
+      where: { idempotencyKey: params.idempotencyKey },
+    });
+
+    if (existing) {
+      const currentWallet = await prisma.wallet.findUnique({
+        where: { id: existing.walletId },
+      });
+      return {
+        walletId: existing.walletId,
+        availableBalance: currentWallet!.availableBalance,
+        lockedBalance: currentWallet!.lockedBalance,
+        ledgerEntryId: existing.id,
+        transactionId: existing.transactionId,
+      };
+    }
+
+    const result = await prisma.$transaction(async (tx) => {
+      const updatedWallet = await tx.wallet.update({
+        where: { id: wallet.id },
+        data: {
+          availableBalance: {
+            increment: amount,
+          },
+        },
+      });
+
+      const entry = await tx.ledgerEntry.create({
+        data: {
+          transactionId: `tx_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+          userId: params.userId,
+          walletId: wallet.id,
+          gameId: params.gameId,
+          entryType: "adjustment",
+          direction: "credit",
+          amount,
+          currency: "COIN",
+          idempotencyKey: params.idempotencyKey,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          metadata: (params.metadata ?? {}) as any,
+        },
+      });
+
+      await tx.auditLog.create({
+        data: {
+          actorType: "system",
+          actorId: "system",
+          action: "credit_commission",
+          resourceType: "wallet",
+          resourceId: String(wallet.id),
+          metadata: {
+            userId: params.userId,
+            gameId: params.gameId,
+            amount: amount.toString(),
+            idempotencyKey: params.idempotencyKey,
+            ...(params.metadata ?? {}),
+          },
+        },
+      });
+
+      return {
+        walletId: updatedWallet.id,
+        availableBalance: updatedWallet.availableBalance,
+        lockedBalance: updatedWallet.lockedBalance,
+        ledgerEntryId: entry.id,
+        transactionId: entry.transactionId,
+      };
+    });
+
+    return result;
+  }
+
   async refund(params: WalletParamsWithGame): Promise<WalletResult> {
     const amount = toBigInt(params.amount);
     validateAmount(amount);

@@ -7,6 +7,7 @@ import { validateEnv } from "./env-validation";
 
 async function main() {
   const checks: { name: string; passed: boolean; details: string }[] = [];
+  const env = process.env as Record<string, string | undefined>;
 
   const add = (name: string, passed: boolean, details: string) => {
     checks.push({ name, passed, details });
@@ -14,13 +15,17 @@ async function main() {
   };
 
   // Test 1: dev mode with missing vars — should return valid=true with warnings
-  const origNodeEnv = process.env.NODE_ENV;
-  const origDbUrl = process.env.DATABASE_URL;
-  const origBotToken = process.env.TELEGRAM_BOT_TOKEN;
+  const origNodeEnv = env.NODE_ENV;
+  const origDbUrl = env.DATABASE_URL;
+  const origBotToken = env.TELEGRAM_BOT_TOKEN;
+  const origWebhookSecret = env.TELEGRAM_WEBHOOK_SECRET;
+  const origAdminUsername = env.ADMIN_USERNAME;
+  const origAdminPassword = env.ADMIN_PASSWORD;
+  const origDirectUrl = env.DIRECT_URL;
 
-  delete process.env.NODE_ENV;
-  delete process.env.DATABASE_URL;
-  delete process.env.TELEGRAM_BOT_TOKEN;
+  delete env.NODE_ENV;
+  delete env.DATABASE_URL;
+  delete env.TELEGRAM_BOT_TOKEN;
 
   const devResult = validateEnv();
   add(
@@ -35,7 +40,7 @@ async function main() {
   );
 
   // Test 2: production mode with missing vars — should return valid=false
-  process.env.NODE_ENV = "production";
+  env.NODE_ENV = "production";
   const prodResult = validateEnv();
   add(
     "prod mode: invalid with missing vars",
@@ -44,11 +49,11 @@ async function main() {
   );
 
   // Test 3: production mode with all vars — should return valid=true
-  process.env.DATABASE_URL = "postgresql://test:test@localhost/test";
-  process.env.TELEGRAM_BOT_TOKEN = "test-token";
-  process.env.TELEGRAM_WEBHOOK_SECRET = "test-secret";
-  process.env.ADMIN_USERNAME = "admin";
-  process.env.ADMIN_PASSWORD = "password";
+  env.DATABASE_URL = "postgresql://test:test@localhost/test";
+  env.TELEGRAM_BOT_TOKEN = "test-token";
+  env.TELEGRAM_WEBHOOK_SECRET = "test-secret";
+  env.ADMIN_USERNAME = "admin";
+  env.ADMIN_PASSWORD = "password";
   const prodFullResult = validateEnv();
   add(
     "prod mode: valid with all required vars",
@@ -62,7 +67,7 @@ async function main() {
   );
 
   // Test 4: DIRECT_URL warning
-  delete process.env.DIRECT_URL;
+  delete env.DIRECT_URL;
   const warnResult = validateEnv();
   add(
     "warns about missing DIRECT_URL",
@@ -72,19 +77,39 @@ async function main() {
 
   // Restore
   if (origNodeEnv === undefined) {
-    delete process.env.NODE_ENV;
+    delete env.NODE_ENV;
   } else {
-    process.env.NODE_ENV = origNodeEnv;
+    env.NODE_ENV = origNodeEnv;
   }
   if (origDbUrl === undefined) {
-    delete process.env.DATABASE_URL;
+    delete env.DATABASE_URL;
   } else {
-    process.env.DATABASE_URL = origDbUrl;
+    env.DATABASE_URL = origDbUrl;
   }
   if (origBotToken === undefined) {
-    delete process.env.TELEGRAM_BOT_TOKEN;
+    delete env.TELEGRAM_BOT_TOKEN;
   } else {
-    process.env.TELEGRAM_BOT_TOKEN = origBotToken;
+    env.TELEGRAM_BOT_TOKEN = origBotToken;
+  }
+  if (origWebhookSecret === undefined) {
+    delete env.TELEGRAM_WEBHOOK_SECRET;
+  } else {
+    env.TELEGRAM_WEBHOOK_SECRET = origWebhookSecret;
+  }
+  if (origAdminUsername === undefined) {
+    delete env.ADMIN_USERNAME;
+  } else {
+    env.ADMIN_USERNAME = origAdminUsername;
+  }
+  if (origAdminPassword === undefined) {
+    delete env.ADMIN_PASSWORD;
+  } else {
+    env.ADMIN_PASSWORD = origAdminPassword;
+  }
+  if (origDirectUrl === undefined) {
+    delete env.DIRECT_URL;
+  } else {
+    env.DIRECT_URL = origDirectUrl;
   }
 
   const failed = checks.filter(c => !c.passed);

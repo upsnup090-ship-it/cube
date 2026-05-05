@@ -1,6 +1,8 @@
 import Link from "next/link";
 import prisma from "@/server/db/prisma";
 
+export const dynamic = "force-dynamic";
+
 function SandboxWarning() {
   return (
     <div className="rounded border border-yellow-300 bg-yellow-50 p-4 text-sm text-yellow-900">

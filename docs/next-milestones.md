@@ -1,53 +1,96 @@
-# Следующие вехи (после readiness-аудита)
+# Следующие вехи
 
-Дата: **2026-04-30**
+Дата: **2026-05-06**
 
-Этот документ — про **порядок работ**, но без реализации новых продуктовых фич в рамках текущего PR.
+---
 
-## Milestone 0: MVP Readiness (закрыть блокеры)
+## Статус Milestone 0 (MVP Readiness)
 
-Цель: получить состояние “можно начинать реальную интеграцию”, не ломая финансовую безопасность.
+Все подпункты закрыты:
 
-### 0.1 Telegram integration readiness (РЕШЕНО — см. [milestone-0.1-decisions.md](./milestone-0.1-decisions.md))
-- **idempotency key**: `tg:update:<update_id>` + производные ключи.
-- **Telegram identity → User**: `from.id` как primary identity, username обновляется при каждом update.
-- **Active game lookup**: один активный матч на пользователя, поиск по `GamePlayer`.
-- **Правила dice**: только , значения 1–6, tie → reroll.
-- **Таймауты**: WAITING=10мин, ROLLING=5мин, RESOLVING=2мин. Refund через background job.
-- **Код**: `telegram-webhook-handler.ts` + `route.ts` реализованы.
+| Пункт | Статус |
+|---|---|
+| 0.1 Telegram integration | ✅ `telegram-webhook-handler.ts` реализован полностью |
+| 0.2 Admin security (Basic Auth + guard) | ✅ `middleware.ts` + `read-only-guard.ts` |
+| 0.3 Postgres/Supabase readiness docs | ✅ `docs/postgres-supabase-readiness.md` + `docs/milestone-2-postgres-plan.md` |
+| 0.4 Deploy/staging runbook | ✅ `docs/deploy-staging-runbook.md` + `.env.example` |
 
-### 0.2 Admin security readiness
-- Выбрать минимальную схему защиты admin:
-  - allowlist по IP / basic auth / oidc (решение зависит от окружения)
-- Зафиксировать “read-only contract”:
-  - какие страницы допустимы
-  - какие действия запрещены и как это enforced (на уровне кода/роутов).
+---
 
-### 0.3 Postgres/Supabase readiness
-- Сформировать документ:
-  - целевой `DATABASE_URL` формат
-  - список env vars (без значений)
-  - стратегия миграции данных (если будет перенос демо-данных)
-  - BigInt/Decimal политика и индексы.
+## Milestone 1 — Staging Deploy
 
-### 0.4 Deploy/staging readiness
-- Сформировать runbook:
-  - окружения (dev/staging/prod)
-  - healthchecks
-  - список обязательных env vars (без секретов)
-  - требования к логированию и audit trail
-  - политика “no real payments / no gambling features”.
+**Цель:** живой staging на реальной Postgres с настоящим Telegram webhook.
 
-## Milestone 1: Реальная Telegram интеграция (после решения блокеров)
+### 1.1 Postgres migration — 🔧 В процессе (код готов, ждём Supabase)
+- ✅ Сменён `provider` на `"postgresql"` в `prisma/schema.prisma`
+- ✅ Обновлён `prisma.config.ts` — `DIRECT_URL` для миграций, `DATABASE_URL` для runtime
+- ✅ Удалены старые SQLite-миграции, создана чистая Postgres-миграция `20260506_init_postgres`
+- ✅ `src/server/db/prisma.ts` — `@prisma/adapter-pg` + `pg.Pool` для Postgres
+- ✅ `prisma/seed.ts` — универсальный `createPrismaClient` для Postgres
+- ✅ `BigInt(0)` → `0n` в `wallet-service.ts` и `service-smoke-check.ts`
+- ✅ Установлены `@prisma/adapter-pg`, `pg`, `@types/pg`
+- ✅ `npm run build` + `npx tsc --noEmit` + `npm run lint` — 0 ошибок
+- ⏳ Требуется: создать Supabase проект, заполнить `.env` (DATABASE_URL + DIRECT_URL)
+- ⏳ После: `npx prisma migrate deploy` + `npm run prisma:seed` + smoke-тесты
 
-Вне рамок текущего PR, но логичный следующий шаг:
-- Реальный webhook handler (с идемпотентностью)
-- Intent → service-layer оркестрация (`GameService`/`WalletService`)
-- Store of raw Telegram payload для аудита
-- Набор unit/integration тестов для идемпотентности и state machine.
+### 1.2 Vercel/hosting deploy
+- Создать проект в Vercel (или другом хостинге)
+- Задать все env vars по `.env.example`
+- Запустить `vercel --prod` (см. `docs/deploy-staging-runbook.md`)
+- Проверить `GET /api/health`
 
-## Milestone 2: Postgres/Supabase (после Telegram) — [план](./milestone-2-postgres-plan.md)
+### 1.3 Telegram webhook setup
+- Зарегистрировать реальный бот в BotFather
+- Запустить `npm run telegram:webhook:set`
+- Проверить `npm run telegram:webhook:info`
+- Сделать тестовый `/start` в боте
 
-- Перевод datasource на Postgres
-- Миграции и проверки invariants
-- Staging deploy с read-only admin и мониторингом.
+### 1.4 Smoke on staging
+- Прогнать `npm run smoke:services` против staging DB (только через локальный `tsx`)
+- Проверить `/admin` с Basic Auth
+- Убедиться что `/api/jobs/refund-expired` доступен только с `CRON_JOB_SECRET`
+
+---
+
+## Milestone 2 — Production hardening
+
+### 2.1 Admin auth upgrade
+- Заменить Basic Auth на Telegram Login Widget или Mini App `initData` верификацию
+- Добавить rate-limiting на `/admin`
+
+### 2.2 Vitest unit tests
+- Добавить `vitest` + изолированные unit-тесты для:
+  - `WalletService` (все методы + edge cases)
+  - `GameService` (state machine transitions)
+  - `assertUserCanPlay` edge cases
+
+### 2.3 Cron scheduler
+- Настроить регулярный вызов `/api/jobs/refund-expired` (Vercel Cron / external scheduler)
+- Мониторинг результатов: `expiredRefunded`, `stuckFlagged`
+
+### 2.4 Monitoring / alerting
+- Алерт при `gamesFailed > 0` или `gamesUnderReview > 0`
+- Логирование ошибок settlement в внешний sink (Sentry / Datadog)
+
+---
+
+## Milestone 3 — Real money (требует отдельных решений)
+
+**Не начинать без:**
+1. Gambling лицензии (если применимо в юрисдикции)
+2. Замены COIN на реальную валюту с платёжным шлюзом
+3. 2FA на admin write-операции
+4. Полного финансового аудита всей ledger логики
+5. Compliance review: AML, KYC, responsible gambling
+
+---
+
+## Known gaps (сейчас)
+
+| Gap | Приоритет | Notes |
+|---|---|---|
+| Supabase проект + DATABASE_URL | Высокий | Код готов, нужен инстанс |
+| Vitest unit tests | Средний | Smoke checks покрывают критические пути |
+| Admin rate limiting | Средний | Перед публичным staging |
+| Cron для refund job | Средний | Сейчас только manual POST |
+| Acceptance п.184 "no rake" | Низкий | Код берёт 50bps — осознанное решение, не баг |

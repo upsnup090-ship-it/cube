@@ -13,7 +13,7 @@ Read the project start files if present:
 - `00_START_HERE.md`
 - `AGENTS.md`
 - `README.md`
-- relevant files from `06_FILE_MAP.md`
+- relevant files from `.windsurf/06_FILE_MAP.md`
 
 ## Step 3: Plan
 List:
@@ -29,7 +29,7 @@ Run the smallest relevant check:
 - tests
 - lint
 - build
-- manual command from `08_COMMANDS.md`
+- manual command from `.windsurf/08_COMMANDS.md`
 
 If verification cannot be run, explain why.
 

@@ -16,10 +16,10 @@ Read:
 - package/config files
 
 ## Step 3: Build file map
-Update `06_FILE_MAP.md` with real project folders and important files.
+Update `.windsurf/06_FILE_MAP.md` with real project folders and important files.
 
 ## Step 4: Build commands list
-Update `08_COMMANDS.md` with real install/run/test/lint/build commands.
+Update `.windsurf/08_COMMANDS.md` with real install/run/test/lint/build commands.
 
 ## Step 5: Identify risks
 Update `context/known_issues.md` and `context/constraints.md` if useful.

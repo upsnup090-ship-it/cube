@@ -2,6 +2,8 @@ import Link from "next/link";
 import prisma from "@/server/db/prisma";
 import { CreateGameForm } from "../components/CreateGameForm";
 
+export const dynamic = "force-dynamic";
+
 export default async function PlayCreatePage() {
   const demoUsers = await prisma.user.findMany({
     where: { telegramUserId: { startsWith: "demo_" } },

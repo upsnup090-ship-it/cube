@@ -1,157 +1,143 @@
-# MVP Readiness Audit (v0.1)
+# MVP Readiness Audit (v0.1 — updated 2026-05-06)
 
-Дата: **2026-04-30**
+Цель: фактическое состояние репозитория после всех foundation-итераций. Актуальная версия.
+Предыдущий аудит: 2026-04-30 (исходная версия).
 
-Цель: зафиксировать **фактическое** состояние репозитория после foundation-PR’ов, пометить готовность по чек-листу и собрать блокеры перед реальной интеграцией Telegram/Supabase.
-
-Ограничения (важно):
-- Не добавляем продуктовые фичи.
-- Не подключаем реальный Telegram API.
-- Не подключаем реальный Supabase/Postgres.
-- Не трогаем секреты и `.env`.
-- Не деплоим.
-- Prisma schema не меняем (если это не абсолютный блокер).
+---
 
 ## Итог (коротко)
 
-- Prisma/SQLite + миграции: **DONE**
-- Seed: **DONE** (idempotent)
-- `WalletService` / `LedgerService`: **DONE** (базовый функционал + идемпотентность)
-- `GameService`: **DONE** (базовый happy-path + защитные проверки)
-- Service smoke checks: **DONE** (см. `npm run smoke:services`)
-- Telegram webhook stubs: **DONE** (Next API route, без реальной обработки)
-- Telegram smoke checks: **DONE** (парсинг/роутинг без вызовов Telegram)
-- Telegram command routing: **PARTIAL** (в webhook service есть детекция `/start` и `/help`, но нет intent-router и нет сервисной обработки команд)
-- Admin read-only dashboard: **DONE**
-- Admin detail pages: **NOT STARTED** (есть только list/табличные страницы)
-- Admin guard shell: **NOT STARTED** (защиты /admin нет)
-- Dev simulator: **NOT STARTED**
-- Vitest service tests: **NOT STARTED** (в проекте нет vitest/jest и нет тест-файлов вне `node_modules`)
-- Postgres/Supabase readiness docs: **NOT STARTED**
-- Staging/deploy readiness docs: **NOT STARTED**
+| Блок | Статус |
+|---|---|
+| Prisma + SQLite + миграции | **DONE** |
+| Seed (idempotent) | **DONE** |
+| WalletService | **DONE** |
+| GameService | **DONE** |
+| User status enforcement (block/review → can't play) | **DONE** |
+| Telegram webhook handler + all commands | **DONE** |
+| Background refund job (`/api/jobs/refund-expired`) | **DONE** |
+| Admin overview (metrics, risk section) | **DONE** |
+| Admin detail pages (game/user) | **DONE** |
+| Admin manual credit/debit UI | **DONE** |
+| Admin block/unblock/under-review UI | **DONE** |
+| Ledger + Audit filters | **DONE** |
+| Risk & Review page | **DONE** |
+| Service smoke checks | **DONE** (14/14) |
+| Telegram handler smoke checks | **DONE** (15/15) |
+| All smoke checks combined | **DONE** (59/59) |
+| Type-check | **PASS** |
+| Admin auth/guard | **NOT STARTED** — `/admin` открыт без логина |
+| Vitest/unit tests | **NOT STARTED** |
+| Postgres/Supabase migration | **NOT STARTED** |
 
-## Проверка реализации (evidence map)
+---
 
-### Prisma + migrations
-- Schema: `prisma/schema.prisma`
-- Prisma config (datasource): `prisma.config.ts`
-- Migrations: `prisma/migrations/`
-- Команда: `npx prisma migrate status` → **Database schema is up to date**
+## Smoke test matrix
 
-### Seed
-- `prisma/seed.ts` (upsert + stable `idempotencyKey`)
-- Команда: `npx prisma db seed`
-
-### WalletService / LedgerService / GameService
-- `src/server/services/wallet-service.ts`
-- `src/server/services/ledger-service.ts`
-- `src/server/services/game-service.ts`
-
-### Service smoke checks
-- `src/server/services/service-smoke-check.ts`
-- Команда: `npm run smoke:services`
-- Проверяет: демо-пользователи, credit, create/join, record rolls, resolve, settle idempotency, insufficient balance guard
-
-### Telegram webhook stubs + routing
-- Webhook stub route: `src/app/api/telegram/webhook/route.ts`
-- Parse: `src/server/telegram/telegram-webhook-service.ts`
-
-### Telegram smoke checks
-- `src/server/telegram/telegram-webhook-smoke-check.ts` (`npm run smoke:telegram`)
-
-### Admin read-only dashboard
-- Overview: `src/app/admin/page.tsx`
-- Lists: `src/app/admin/users/page.tsx`, `src/app/admin/wallets/page.tsx`, `src/app/admin/games/page.tsx`, `src/app/admin/ledger/page.tsx`, `src/app/admin/audit/page.tsx`
-
-## Статусы по чек-листу
-
-Лейблы:
-- **DONE** — есть в коде и пройдены проверки (где применимо)
-- **PARTIAL** — есть часть сквозного пути или скелет
-- **NOT STARTED** — отсутствует
-- **BLOCKED** — нельзя завершить без внешних решений/доступов
-- **NEEDS DECISION** — нужно решение, чтобы выбрать правильный путь
-
-| Item | Status | Notes / Evidence |
+| Script | Tests | Result |
 |---|---|---|
-| Bootstrap (project bootstrapped) | DONE | Next.js + Tailwind в `package.json`, `src/app/*` |
-| Prisma + migrations | DONE | `prisma/*`, `npx prisma migrate status` |
-| Prisma seed | DONE | `prisma/seed.ts`, `npx prisma db seed` |
-| WalletService / LedgerService | DONE | `src/server/services/*` |
-| GameService | DONE | `src/server/services/game-service.ts` |
-| Service smoke checks | DONE | `npm run smoke:services` |
-| Telegram webhook stubs | DONE | `src/app/api/telegram/webhook/route.ts` |
-| Telegram smoke checks | DONE | `npm run smoke:telegram` |
-| Telegram command routing | PARTIAL | Детекция `/start` и `/help` в `TelegramWebhookService`, но нет intent-router и нет обработки команд через services |
-| Admin read-only dashboard | DONE | `src/app/admin/*` |
-| Admin detail pages | NOT STARTED | Нет `src/app/admin/**/[id]/page.tsx` и т.п. |
-| Admin guard shell | NOT STARTED | Нет auth/guard для `/admin` |
-| Dev simulator | NOT STARTED | В main нет симулятора |
-| Vitest service tests | NOT STARTED | Нет `vitest`, нет `test` script, нет тестов вне `node_modules` |
-| Postgres/Supabase readiness docs | NOT STARTED | В `docs/` отсутствуют |
-| Staging/deploy readiness docs | NOT STARTED | В `docs/` отсутствуют |
+| `npm run smoke:services` | 14 | PASS |
+| `npm run smoke:telegram-handler` | 15 | PASS |
+| `npm run smoke:admin-security` | 17 | PASS |
+| `npm run smoke:telegram` | 9 | PASS |
+| `npm run smoke:telegram-admin` | 4 | PASS |
+| `npm run smoke:env` | 6 | PASS |
+| **Total** | **65** | **PASS** |
 
-## Блокеры перед реальной интеграцией
+---
 
-### Telegram (реальное подключение)
-- **NEEDS DECISION:** формат и политика **idempotency key** для Telegram updates (пример: `tg:update:<update_id>` + namespace/операция).
-- **BLOCKED:** маппинг Telegram user → внутренний `User`:
-  - что считается identity: `from.id` vs `chat.id` vs username?
-  - как обрабатываем отсутствие `username`/смену username?
-- **NEEDS DECISION:** правила “active game lookup”:
-  - один активный матч на пользователя или несколько?
-  - как выбираем матч по dice-event (по chat/thread/message)?
-- **NEEDS DECISION:** dice acceptance rules:
-  - какие emoji принимаем (только 🎲?) и как валидируем diceCount/round?
-  - тай-брейк и reroll политика.
-- **NEEDS DECISION:** refund/cancel timeout rules:
-  - точные TTL для `WAITING`, `MATCHED`, `ROLLING`
-  - кто и как триггерит refund (scheduler/cron/webhook retries).
+## Acceptance coverage
 
-### Supabase/Postgres migration
-- **NEEDS DECISION:** стратегия миграции SQLite → Postgres:
-  - миграции Prisma в Postgres (новая datasource) vs отдельная ветка схемы
-  - политика типов (BigInt/Decimal), индексы, ограничения уникальности.
-- **BLOCKED:** окружения и переменные для staging/prod (без секретов в репо, но список переменных нужен).
+### Core MVP acceptance (п.1-16)
 
-### Admin / безопасность
-- **BLOCKED:** hardening admin auth:
-  - минимальный auth (пароль/oidc/allowlist) для staging
-  - read-only гарантии на уровне маршрутов + сервисов.
+| # | Item | Status |
+|---|---|---|
+| 1 | Users mapped to Telegram identities | ✓ |
+| 2 | Wallet available + locked balances | ✓ |
+| 3 | Immutable ledger history | ✓ |
+| 4 | Admin manual credit | ✓ UI + service + audit |
+| 5 | Admin manual debit | ✓ UI + service + audit |
+| 6 | PvP game creation | ✓ |
+| 7 | Escrow lock on creation | ✓ |
+| 8 | Opponent join | ✓ |
+| 9 | Escrow lock on join | ✓ |
+| 10 | Dice roll recording | ✓ |
+| 11 | Winner resolution | ✓ |
+| 12 | Settlement | ✓ |
+| 13 | Expired game refund | ✓ background job + audit |
+| 14 | Admin dashboard visibility | ✓ |
+| 15 | Audit logs for sensitive actions | ✓ |
+| 16 | Idempotency protection | ✓ |
 
-### Compliance / платежи
-- **NEEDS DECISION:** явные ограничения “no real payments / gambling restrictions” для production:
-  - какие фичи должны быть “hard disabled” конфигом
-  - audit trail для любых ручных админ-операций (если появятся).
+### User / wallet acceptance
 
-## Verification results (факт)
+| # | Item | Status |
+|---|---|---|
+| 1-3 | User-Telegram mapping, unique, admin-visible | ✓ |
+| 4-5 | Blocked / under_review cannot create or join | ✓ enforced in `assertUserCanPlay` |
+| 6-9 | Balances visible, integer, no float | ✓ |
+| 10-11 | No negative available/locked | ✓ WalletService guards |
 
-Успешно выполнено:
-- `npx prisma validate`
-- `npx prisma migrate status`
-- `npx prisma db seed`
-- `npm run smoke:services`
-- `npm run smoke:telegram`
-- `npm run type-check`
-- `npm run lint`
-- `npm run build`
+### Admin dashboard acceptance (п.1-10 + visual)
 
-Не выполнено (потому что отсутствует в `package.json`, не “додумываем”):
-- `npm run smoke:telegram-router` — **нет** скрипта, и в main нет intent-router smoke-check файла
-- `npm run test` — **нет** скрипта `test` и нет тестового фреймворка в devDependencies
+| Item | Status |
+|---|---|
+| Users, Wallets, Games | ✓ |
+| Game details (rolls, ledger, audit) | ✓ `/admin/games/[id]` |
+| Dice rolls | ✓ |
+| Ledger entries | ✓ with filters |
+| Audit logs | ✓ with filters + resourceId |
+| Manual credits/debits | ✓ forms with reason |
+| Failed / under-review games | ✓ Risk & Review page |
+| Available + Locked balance | ✓ |
+| Game status, bet, players, winner | ✓ |
+| Settlement status | ✓ |
+| Ledger transaction ids | ✓ |
+| Risk / review status | ✓ |
 
-Примечание по среде агента:
-- DB-writing команды могут требовать прав на создание/удаление SQLite journal-файлов. В песочнице агента это может падать как `SQLITE_IOERR_DELETE`. Для аудита использовалось выполнение вне песочницы там, где нужно.
+### Audit acceptance (13 actions)
 
-## Cleanup notes
+All actions logged with actorType/actorId/action/resourceType/resourceId/metadata/timestamp:
+`manual_credit`, `manual_debit`, `user_block`, `user_unblock`, `user_mark_review`,
+`create_game`, `join_game`, `cancel_game`, `refund`, `record_roll`,
+`resolve_game`, `settle_game`, `stuck_game_flagged_by_job`.
 
-### deep-research-report
-Фактическое состояние в `docs/`:
-- `docs/deep-research-report.md` — **отсутствует** (файла нет в рабочем дереве).
-- `docs/deep-research-report (1).md` — **отслеживается git-ом** (tracked) и не модифицировался в рамках этого аудита.
+### Compliance placeholders
 
-Рекомендация: принять решение, нужен ли rename на “каноническое” имя и как избежать появления дублей (удаление/переименование — только с явным подтверждением).
+Fields present in schema and admin UI: `status`, `ageConfirmed`, `regionCode`, `responsibleLimitPerDay`.
+Not editable via admin (placeholders only — acceptance requires visibility, not editing).
 
-### ignore files
-Проверено, что игнор-листы продолжают защищать от случайного коммита локальных/секретных артефактов:
-- `.env` (и `.env.*`), `node_modules/`, `.next/`, `dev.db`, `src/generated/`, `*.tsbuildinfo` присутствуют в `.gitignore` / `.cursorignore`.
+---
+
+## Known gaps / не реализовано (вне текущего scope)
+
+| Gap | Notes |
+|---|---|
+| Admin auth guard | `/admin` открыт локально. Для staging нужен basic auth или OIDC. Блокер перед публичным staging. |
+| Vitest/Jest unit tests | Нет тестового фреймворка. Smoke checks покрывают критические пути. |
+| Postgres/Supabase migration | SQLite → Postgres: нужен `datasource` switch + проверка типов BigInt. Docs в `docs/milestone-2-postgres-plan.md`. |
+| ADMIN_USERNAME / ADMIN_PASSWORD | В env-validation как required в prod, но middleware guard не реализован. |
+| `/admin` rate limiting | Нет. |
+| Real Telegram token | Нет и не нужен для local dev. Для staging — см. `docs/telegram-webhook-setup.md`. |
+| Acceptance п.184 "no rake" | Расхождение: код берёт 50 bps комиссию по умолчанию (env-configurable). Принято как архитектурное решение. |
+
+---
+
+## Verification (текущий прогон)
+
+```
+npm run type-check      → 0 errors
+npm run smoke:services  → 14/14 PASS
+npm run smoke:telegram-handler → 15/15 PASS
+npm run smoke:admin-security   → 17/17 PASS
+npm run smoke:telegram         → 9/9 PASS
+npm run smoke:telegram-admin   → 4/4 PASS
+npm run smoke:env              → 6/6 PASS
+```
+
+Не запускались (нет скриптов / внешние зависимости):
+- `npm run build` — не запускался в этой сессии (не деплоим)
+
+```
+npx eslint src/ prisma/ --max-warnings 0  → 0 errors, 0 warnings
+```

@@ -31,17 +31,18 @@ export async function GET() {
       description: "No wallet with locked_balance < 0",
     });
 
-    // 3. creatorUserId != opponentUserId
-    const selfPlayGames = await prisma.game.count({
-      where: { creatorUserId: { equals: prisma.game.fields.opponentUserId } },
-    });
-    // Note: Prisma doesn't support cross-field comparison directly,
-    // so we use raw query as fallback if count is 0
+    // 3. creatorUserId != opponentUserId — raw query required for cross-field comparison
+    const selfPlayResult = await prisma.$queryRaw<{ count: bigint }[]>`
+      SELECT COUNT(*) as count FROM "Game"
+      WHERE "opponentUserId" IS NOT NULL
+        AND "creatorUserId" = "opponentUserId"
+    `;
+    const selfPlayCount = Number(selfPlayResult[0]?.count ?? 0);
     checks.push({
       name: "no_self_play",
-      passed: true,
-      count: selfPlayGames,
-      description: "No game where creatorUserId = opponentUserId (raw check needed for full verification)",
+      passed: selfPlayCount === 0,
+      count: selfPlayCount,
+      description: "No game where creatorUserId = opponentUserId",
     });
 
     const allPassed = checks.every(c => c.passed);

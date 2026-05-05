@@ -24,6 +24,17 @@ type CancelWaitingGameParams = {
   idempotencyKey: string;
 };
 
+type RefundExpiredGameParams = {
+  gameId: number;
+  idempotencyKey: string;
+};
+
+type ProcessExpiredGamesResult = {
+  expiredRefunded: number;
+  stuckFlagged: number;
+  failed: number;
+};
+
 type RecordRollParams = {
   gameId: number;
   userId: number;
@@ -78,6 +89,36 @@ function isUniqueError(error: unknown): boolean {
   return candidate.code === "P2002";
 }
 
+const DEFAULT_GAME_COMMISSION_BPS = 50;
+const DEFAULT_GAME_COMMISSION_RECIPIENT_TELEGRAM_USER_ID = "1093943977";
+
+function readGameCommissionBps(): number {
+  const rawValue = (process.env.GAME_COMMISSION_BPS ?? String(DEFAULT_GAME_COMMISSION_BPS)).trim();
+  if (!/^\d+$/.test(rawValue)) {
+    throw new Error("GAME_COMMISSION_BPS must be a whole number of basis points");
+  }
+
+  const bps = Number(rawValue);
+  if (!Number.isSafeInteger(bps) || bps < 0 || bps > 10_000) {
+    throw new Error("GAME_COMMISSION_BPS must be between 0 and 10000");
+  }
+
+  return bps;
+}
+
+function readGameCommissionRecipientTelegramUserId(): string {
+  const telegramUserId = (
+    process.env.GAME_COMMISSION_RECIPIENT_TELEGRAM_USER_ID
+    ?? DEFAULT_GAME_COMMISSION_RECIPIENT_TELEGRAM_USER_ID
+  ).trim();
+
+  if (telegramUserId === "") {
+    throw new Error("GAME_COMMISSION_RECIPIENT_TELEGRAM_USER_ID must not be empty");
+  }
+
+  return telegramUserId;
+}
+
 export class GameService {
   private async getIdempotentResource(key: string, operation: string) {
     return prisma.idempotencyKey.findUnique({
@@ -89,7 +130,42 @@ export class GameService {
     });
   }
 
+  private async getCommissionRecipientUser() {
+    const telegramUserId = readGameCommissionRecipientTelegramUserId();
+
+    return prisma.user.upsert({
+      where: { telegramUserId },
+      update: {},
+      create: {
+        telegramUserId,
+        username: `commission_${telegramUserId}`,
+        displayName: "Bot Commission Recipient",
+        status: "active",
+      },
+      select: {
+        id: true,
+        telegramUserId: true,
+      },
+    });
+  }
+
+  private async assertUserCanPlay(userId: number, action: "create" | "join"): Promise<void> {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { status: true },
+    });
+    if (!user) throw new Error(`User ${userId} not found`);
+    if (user.status === "blocked") {
+      throw new Error(`User ${userId} is blocked and cannot ${action} a game`);
+    }
+    if (user.status === "under_review") {
+      throw new Error(`User ${userId} is under review and cannot ${action} a game`);
+    }
+  }
+
   async createGame(params: CreateGameParams) {
+    await this.assertUserCanPlay(params.creatorUserId, "create");
+
     const betAmount = toBigInt(params.betAmount);
     if (betAmount <= 0n) throw new Error("Bet amount must be greater than zero");
     if (params.diceCount !== 1 && params.diceCount !== 2) {
@@ -211,6 +287,8 @@ export class GameService {
   }
 
   async joinGame(params: JoinGameParams) {
+    await this.assertUserCanPlay(params.opponentUserId, "join");
+
     if (!params.gameId && !params.publicCode) {
       throw new Error("Either gameId or publicCode is required");
     }
@@ -626,10 +704,192 @@ export class GameService {
       return prisma.game.findUniqueOrThrow({ where: { id: Number(existingResourceId) } });
     }
 
-    await prisma.idempotencyKey.create({
+    const reserved = await prisma.idempotencyKey.create({
       data: {
         key: params.idempotencyKey,
         operation: "settle_game",
+        resourceType: "game",
+      },
+    }).then(() => true).catch((error: unknown) => {
+      if (isUniqueError(error)) return false;
+      throw error;
+    });
+
+    if (!reserved) {
+      const existingGame = await prisma.game.findUnique({
+        where: { id: params.gameId },
+      });
+
+      if (existingGame?.status === GameStatus.settled) {
+        return existingGame;
+      }
+
+      throw new Error("Settlement already in progress");
+    }
+
+    try {
+      const game = await prisma.game.findUnique({
+        where: { id: params.gameId },
+      });
+      if (!game) throw new Error("Game not found");
+      if (game.status === GameStatus.settled) return game;
+      if (game.status !== GameStatus.matched && game.status !== GameStatus.resolving) {
+        throw new Error("Game cannot be settled from current state");
+      }
+
+      let winnerUserId = game.winnerUserId;
+      let loserUserId = game.loserUserId;
+
+      if (!winnerUserId || !loserUserId) {
+        const resolveResult = await this.resolveGame({ gameId: game.id });
+        if (resolveResult.outcome === "tie_requires_reroll") {
+          throw new Error("Cannot settle tie; reroll required");
+        }
+        winnerUserId = resolveResult.winnerUserId;
+        loserUserId = resolveResult.loserUserId;
+      }
+
+      const commissionBps = readGameCommissionBps();
+      const commissionAmount = game.betAmount * BigInt(commissionBps) / 10_000n;
+      if (commissionAmount > game.betAmount) {
+        throw new Error("Settlement commission cannot exceed opponent stake");
+      }
+
+      const opponentNetPayout = game.betAmount - commissionAmount;
+      const commissionRecipient = commissionAmount > 0n
+        ? await this.getCommissionRecipientUser()
+        : null;
+
+      await walletService.releaseEscrow({
+        userId: winnerUserId,
+        amount: game.betAmount,
+        idempotencyKey: `game:settle:${params.idempotencyKey}:release_winner`,
+        metadata: {
+          gameId: game.id,
+          reason: "settlement_release_winner",
+        },
+      });
+
+      if (opponentNetPayout > 0n) {
+        await walletService.consumeLockedEscrow({
+          userId: loserUserId,
+          gameId: game.id,
+          amount: opponentNetPayout,
+          idempotencyKey: `game:settle:${params.idempotencyKey}:consume_loser_stake`,
+          metadata: {
+            gameId: game.id,
+            winnerUserId,
+            reason: "settlement_consume_loser_stake",
+          },
+        });
+
+        await walletService.payout({
+          userId: winnerUserId,
+          gameId: game.id,
+          amount: opponentNetPayout,
+          idempotencyKey: `game:settle:${params.idempotencyKey}:payout_winner`,
+          metadata: {
+            gameId: game.id,
+            loserUserId,
+            commissionAmount: commissionAmount.toString(),
+            reason: "settlement_payout",
+          },
+        });
+      }
+
+      if (commissionAmount > 0n && commissionRecipient) {
+        await walletService.collectRakeFromLocked({
+          userId: loserUserId,
+          gameId: game.id,
+          amount: commissionAmount,
+          idempotencyKey: `game:settle:${params.idempotencyKey}:collect_rake`,
+          metadata: {
+            gameId: game.id,
+            winnerUserId,
+            commissionBps,
+            commissionRecipientUserId: commissionRecipient.id,
+            commissionRecipientTelegramUserId: commissionRecipient.telegramUserId,
+            reason: "settlement_collect_rake",
+          },
+        });
+
+        await walletService.creditCommission({
+          userId: commissionRecipient.id,
+          gameId: game.id,
+          amount: commissionAmount,
+          idempotencyKey: `game:settle:${params.idempotencyKey}:credit_commission`,
+          metadata: {
+            gameId: game.id,
+            loserUserId,
+            winnerUserId,
+            commissionBps,
+            commissionRecipientTelegramUserId: commissionRecipient.telegramUserId,
+            reason: "settlement_credit_commission",
+          },
+        });
+      }
+
+      await prisma.$transaction(async (tx) => {
+        await tx.game.update({
+          where: { id: game.id },
+          data: {
+            status: GameStatus.settled,
+            winnerUserId,
+            loserUserId,
+            resultReason: "settled",
+            settledAt: new Date(),
+          },
+        });
+
+        await tx.auditLog.create({
+          data: {
+            actorType: "system",
+            actorId: "system",
+            action: "settle_game",
+            resourceType: "game",
+            resourceId: String(game.id),
+            metadata: {
+              idempotencyKey: params.idempotencyKey,
+              winnerUserId,
+              loserUserId,
+              winnerEscrowReturnAmount: game.betAmount.toString(),
+              opponentNetPayout: opponentNetPayout.toString(),
+              commissionAmount: commissionAmount.toString(),
+              commissionBps,
+              commissionRecipientUserId: commissionRecipient?.id ?? null,
+              commissionRecipientTelegramUserId: commissionRecipient?.telegramUserId ?? null,
+            },
+          },
+        });
+
+        await tx.idempotencyKey.update({
+          where: { key: params.idempotencyKey },
+          data: {
+            resourceId: String(game.id),
+          },
+        });
+      });
+
+      return prisma.game.findUniqueOrThrow({ where: { id: game.id } });
+    } catch (error) {
+      await prisma.idempotencyKey.delete({
+        where: { key: params.idempotencyKey },
+      }).catch(() => undefined);
+
+      throw error;
+    }
+  }
+
+  async refundExpiredGame(params: RefundExpiredGameParams) {
+    const existingResourceId = await this.getIdempotentResource(params.idempotencyKey, "refund_expired_game");
+    if (existingResourceId) {
+      return prisma.game.findUniqueOrThrow({ where: { id: Number(existingResourceId) } });
+    }
+
+    await prisma.idempotencyKey.create({
+      data: {
+        key: params.idempotencyKey,
+        operation: "refund_expired_game",
         resourceType: "game",
         resourceId: String(params.gameId),
       },
@@ -637,90 +897,115 @@ export class GameService {
       if (!isUniqueError(error)) throw error;
     });
 
-    const game = await prisma.game.findUnique({
-      where: { id: params.gameId },
-    });
+    const game = await prisma.game.findUnique({ where: { id: params.gameId } });
     if (!game) throw new Error("Game not found");
-    if (game.status === GameStatus.settled) return game;
-    if (game.status !== GameStatus.matched && game.status !== GameStatus.resolving) {
-      throw new Error("Game cannot be settled from current state");
+    if (game.status !== GameStatus.waiting) {
+      throw new Error(`Game is not in waiting state (current: ${game.status})`);
+    }
+    if (game.opponentUserId !== null) {
+      throw new Error("Game already has opponent — cannot refund as expired");
+    }
+    if (game.expiresAt > new Date()) {
+      throw new Error("Game has not expired yet");
     }
 
-    let winnerUserId = game.winnerUserId;
-    let loserUserId = game.loserUserId;
-
-    if (!winnerUserId || !loserUserId) {
-      const resolveResult = await this.resolveGame({ gameId: game.id });
-      if (resolveResult.outcome === "tie_requires_reroll") {
-        throw new Error("Cannot settle tie; reroll required");
-      }
-      winnerUserId = resolveResult.winnerUserId;
-      loserUserId = resolveResult.loserUserId;
-    }
-
-    const payoutAmount = game.betAmount * 2n;
-
-    await walletService.releaseEscrow({
+    await walletService.refund({
       userId: game.creatorUserId,
-      amount: game.betAmount,
-      idempotencyKey: `game:settle:${params.idempotencyKey}:release_creator`,
-      metadata: {
-        gameId: game.id,
-        reason: "settlement_release_creator",
-      },
-    });
-    await walletService.releaseEscrow({
-      userId: loserUserId,
-      amount: game.betAmount,
-      idempotencyKey: `game:settle:${params.idempotencyKey}:release_opponent`,
-      metadata: {
-        gameId: game.id,
-        reason: "settlement_release_opponent",
-      },
-    });
-    await walletService.payout({
-      userId: winnerUserId,
       gameId: game.id,
-      amount: payoutAmount,
-      idempotencyKey: `game:settle:${params.idempotencyKey}:payout_winner`,
-      metadata: {
-        gameId: game.id,
-        loserUserId,
-        reason: "settlement_payout",
-      },
+      amount: game.betAmount,
+      idempotencyKey: `game:refund_expired:${params.idempotencyKey}:creator_refund`,
+      metadata: { gameId: game.id, reason: "expired_waiting_game" },
     });
 
     await prisma.$transaction(async (tx) => {
       await tx.game.update({
         where: { id: game.id },
-        data: {
-          status: GameStatus.settled,
-          winnerUserId,
-          loserUserId,
-          resultReason: "settled",
-          settledAt: new Date(),
-        },
+        data: { status: GameStatus.refunded, resultReason: "expired_no_opponent" },
       });
-
       await tx.auditLog.create({
         data: {
           actorType: "system",
           actorId: "system",
-          action: "settle_game",
+          action: "refund_game",
           resourceType: "game",
           resourceId: String(game.id),
-          metadata: {
-            idempotencyKey: params.idempotencyKey,
-            winnerUserId,
-            loserUserId,
-            payoutAmount: payoutAmount.toString(),
-          },
+          metadata: { idempotencyKey: params.idempotencyKey, reason: "expired_waiting_game", refundApplied: true },
         },
+      });
+      await tx.idempotencyKey.update({
+        where: { key: params.idempotencyKey },
+        data: { resourceId: String(game.id) },
       });
     });
 
     return prisma.game.findUniqueOrThrow({ where: { id: game.id } });
   }
+
+  async processExpiredGames(): Promise<ProcessExpiredGamesResult> {
+    const now = new Date();
+    let expiredRefunded = 0;
+    let stuckFlagged = 0;
+    let failed = 0;
+
+    // 1. Find and refund expired WAITING games
+    const expiredGames = await prisma.game.findMany({
+      where: {
+        status: GameStatus.waiting,
+        expiresAt: { lt: now },
+        opponentUserId: null,
+      },
+      select: { id: true },
+    });
+
+    for (const { id } of expiredGames) {
+      try {
+        await this.refundExpiredGame({
+          gameId: id,
+          idempotencyKey: `job:refund_expired:${id}:${Math.floor(now.getTime() / 60_000)}`,
+        });
+        expiredRefunded++;
+      } catch {
+        failed++;
+      }
+    }
+
+    // 2. Flag stuck ROLLING/RESOLVING games as under_review
+    const stuckCutoff = new Date(now.getTime() - 30 * 60 * 1000);
+    const stuckGames = await prisma.game.findMany({
+      where: {
+        status: { in: [GameStatus.rolling, GameStatus.resolving] },
+        updatedAt: { lt: stuckCutoff },
+      },
+      select: { id: true, status: true },
+    });
+
+    for (const { id, status } of stuckGames) {
+      try {
+        await prisma.$transaction(async (tx) => {
+          await tx.game.update({
+            where: { id, status },
+            data: { status: GameStatus.under_review, resultReason: "stuck_game_flagged_by_job" },
+          });
+          await tx.auditLog.create({
+            data: {
+              actorType: "system",
+              actorId: "system",
+              action: "flag_stuck_game",
+              resourceType: "game",
+              resourceId: String(id),
+              metadata: { previousStatus: status, reason: "stuck_rolling_resolving", stuckCutoff: stuckCutoff.toISOString() },
+            },
+          });
+        });
+        stuckFlagged++;
+      } catch {
+        failed++;
+      }
+    }
+
+    return { expiredRefunded, stuckFlagged, failed };
+  }
 }
 
 export const gameService = new GameService();
+

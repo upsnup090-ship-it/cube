@@ -1,4 +1,5 @@
 import Link from "next/link";
+export const dynamic = "force-dynamic";
 import prisma from "@/server/db/prisma";
 
 export default async function AdminUsersPage() {
@@ -42,7 +43,9 @@ export default async function AdminUsersPage() {
             <tbody>
               {users.map((user) => (
                 <tr key={user.id} className="border-t">
-                  <td className="px-3 py-2">{user.id}</td>
+                  <td className="px-3 py-2">
+                    <Link href={`/admin/users/${user.id}`} className="text-blue-700 hover:underline">{user.id}</Link>
+                  </td>
                   <td className="px-3 py-2">{user.telegramUserId}</td>
                   <td className="px-3 py-2">{user.username ?? "-"}</td>
                   <td className="px-3 py-2">{user.displayName ?? "-"}</td>
