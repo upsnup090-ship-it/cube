@@ -78,7 +78,17 @@ POST /api/telegram/webhook
 
 Endpoint принимает Telegram updates, проверяет secret header, затем вызывает `TelegramWebhookHandler`.
 
-## Set webhook
+## Webhook management (npm scripts)
+
+```bash
+npm run telegram:webhook:set    # set webhook using TELEGRAM_WEBHOOK_URL + TELEGRAM_WEBHOOK_SECRET
+npm run telegram:webhook:info   # get current webhook info
+npm run telegram:webhook:delete # delete webhook
+```
+
+Все команды используют `TELEGRAM_BOT_TOKEN` и `TELEGRAM_API_BASE_URL` из env.
+
+## Set webhook (manual)
 
 ```powershell
 $body = @{
@@ -93,13 +103,13 @@ Invoke-RestMethod `
   -Body $body
 ```
 
-## Check webhook
+## Check webhook (manual)
 
 ```powershell
 Invoke-RestMethod "https://api.telegram.org/bot$env:TELEGRAM_BOT_TOKEN/getWebhookInfo"
 ```
 
-## Delete webhook
+## Delete webhook (manual)
 
 ```powershell
 Invoke-RestMethod -Method Post "https://api.telegram.org/bot$env:TELEGRAM_BOT_TOKEN/deleteWebhook"
