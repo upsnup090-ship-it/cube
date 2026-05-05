@@ -24,6 +24,13 @@
 - `src/app/api/health/route.ts` — healthcheck API (SELECT 1, latency)
 - `src/app/api/health/db/route.ts` — invariant checks (balances >= 0, no self-play)
 - `docs/postgres-supabase-readiness.md` — документация перехода на Postgres
+- `src/server/config/env-validation.ts` — валидация env vars (production fail-closed)
+- `src/server/config/env-validation-smoke-check.ts` — 5 тестов env validation
+- `docs/deploy-staging-runbook.md` — runbook: окружения, env vars, healthchecks, политика no-real-payments
+
+### Removed
+- `@prisma/adapter-better-sqlite3` — больше не нужен (Postgres)
+- `better-sqlite3` — больше не нужен (Postgres)
 
 ### Changed
 - `telegram-webhook-service.ts` — добавлена фильтрация dice (🎲, 1-6), idempotency key builder

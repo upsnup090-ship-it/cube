@@ -14,6 +14,7 @@
     "smoke:telegram-api": "tsx src/server/telegram/telegram-api-smoke-check.ts",
     "smoke:telegram-admin": "tsx src/server/telegram/telegram-webhook-admin-smoke-check.ts",
     "smoke:admin-security": "tsx src/server/admin/admin-security-smoke-check.ts",
+    "smoke:env": "tsx src/server/config/env-validation-smoke-check.ts",
     "telegram:webhook:set": "tsx src/server/telegram/telegram-webhook-admin.ts set",
     "telegram:webhook:info": "tsx src/server/telegram/telegram-webhook-admin.ts info",
     "telegram:webhook:delete": "tsx src/server/telegram/telegram-webhook-admin.ts delete",
@@ -32,13 +33,11 @@
     "react-dom": "^19.1.0"
   },
   "devDependencies": {
-    "@prisma/adapter-better-sqlite3": "^7.8.0",
     "@prisma/client": "^7.8.0",
     "@tailwindcss/postcss": "^4.2.4",
     "@types/node": "^22.15.0",
     "@types/react": "^19.1.0",
     "@types/react-dom": "^19.1.0",
-    "better-sqlite3": "^12.9.0",
     "eslint": "^9.25.0",
     "eslint-config-next": "^15.3.0",
     "postcss": "^8.5.0",
