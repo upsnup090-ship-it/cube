@@ -35,10 +35,10 @@ export function isValidDiceValue(value: number): boolean {
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
-export type TelegramCommandType = "start" | "help";
+export type TelegramCommandType = "start" | "help" | "play" | "join" | "cancel";
 
 export type TelegramCommandResult =
-  | { kind: "command"; command: TelegramCommandType; message: TelegramMessage }
+  | { kind: "command"; command: TelegramCommandType; args: string[]; message: TelegramMessage }
   | { kind: "unknown_text"; text: string; message: TelegramMessage }
   | { kind: "not_text" };
 
@@ -180,12 +180,25 @@ export class TelegramWebhookService {
       return { kind: "not_text" };
     }
 
-    const normalized = message.text.trim().toLowerCase();
-    if (normalized === "/start") {
-      return { kind: "command", command: "start", message };
+    const trimmed = message.text.trim();
+    const parts = trimmed.split(/\s+/);
+    const cmd = parts[0].toLowerCase();
+    const args = parts.slice(1);
+
+    if (cmd === "/start") {
+      return { kind: "command", command: "start", args: [], message };
     }
-    if (normalized === "/help") {
-      return { kind: "command", command: "help", message };
+    if (cmd === "/help") {
+      return { kind: "command", command: "help", args: [], message };
+    }
+    if (cmd === "/play" || cmd === "/create") {
+      return { kind: "command", command: "play", args, message };
+    }
+    if (cmd === "/join") {
+      return { kind: "command", command: "join", args, message };
+    }
+    if (cmd === "/cancel") {
+      return { kind: "command", command: "cancel", args: [], message };
     }
 
     return { kind: "unknown_text", text: message.text, message };
