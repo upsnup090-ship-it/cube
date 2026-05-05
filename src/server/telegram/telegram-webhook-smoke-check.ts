@@ -60,6 +60,26 @@ async function main() {
   });
   add("Detect dice payload", diceResult.kind === "dice", `kind=${diceResult.kind}`);
 
+  // Dice filtering: wrong emoji
+  const wrongEmojiResult = telegramWebhookService.parseUpdate({
+    update_id: 6,
+    message: {
+      message_id: 104, from: { id: 42 }, chat: { id: 500 },
+      date: 1710000004, dice: { emoji: "🎯", value: 5 },
+    },
+  });
+  add("Reject non-dice emoji", wrongEmojiResult.kind !== "dice", `kind=${wrongEmojiResult.kind}`);
+
+  // Dice filtering: invalid value
+  const badValueResult = telegramWebhookService.parseUpdate({
+    update_id: 7,
+    message: {
+      message_id: 105, from: { id: 42 }, chat: { id: 500 },
+      date: 1710000005, dice: { emoji: "🎲", value: 7 },
+    },
+  });
+  add("Reject invalid dice value", badValueResult.kind !== "dice", `kind=${badValueResult.kind}`);
+
   const unknownResult = telegramWebhookService.parseUpdate({
     update_id: 4,
     message: {

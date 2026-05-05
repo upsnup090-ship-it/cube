@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { telegramWebhookService } from "@/server/telegram/telegram-webhook-service";
+import { telegramWebhookHandler } from "@/server/telegram/telegram-webhook-handler";
 
 const TELEGRAM_SECRET_HEADER = "x-telegram-bot-api-secret-token";
 
@@ -24,21 +24,14 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const parsed = telegramWebhookService.parseUpdate(payload);
-
+  // If secret not configured — operate in dry-run mode
   if (!configuredSecret) {
-    return NextResponse.json({
-      ok: true,
-      mode: "stub_no_secret_configured",
-      handled: false,
-      result: parsed.kind,
-    });
+    const dryResult = await telegramWebhookHandler.handleUpdate(payload);
+    return NextResponse.json({ ok: true, dryRun: true, result: dryResult });
   }
 
-  return NextResponse.json({
-    ok: true,
-    mode: "stub_secret_verified",
-    handled: false,
-    result: parsed.kind,
-  });
+  // Process update
+  const result = await telegramWebhookHandler.handleUpdate(payload);
+  const status = result.status === "error" ? 500 : 200;
+  return NextResponse.json({ ok: result.status === "ok", result }, { status });
 }

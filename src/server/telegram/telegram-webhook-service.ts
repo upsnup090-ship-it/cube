@@ -1,5 +1,30 @@
 import type { TelegramMessage, TelegramUpdate } from "./telegram-types";
 
+// ─── Idempotency key ────────────────────────────────────────────────────────
+// Format: tg:update:<update_id>
+// Derived keys: tg:update:<update_id>:dice_roll, tg:update:<update_id>:user_upsert
+export function buildTelegramIdempotencyKey(updateId: number, suffix?: string): string {
+  const base = `tg:update:${updateId}`;
+  return suffix ? `${base}:${suffix}` : base;
+}
+
+// ─── Dice acceptance rules ──────────────────────────────────────────────────
+// Only standard dice emoji is accepted for PvP Dices game.
+// Other Telegram dice (🎯🏀⚽🎳🎰) are ignored.
+export const ACCEPTED_DICE_EMOJI = "🎲";
+export const DICE_VALUE_MIN = 1;
+export const DICE_VALUE_MAX = 6;
+
+export function isAcceptedDiceEmoji(emoji: string): boolean {
+  return emoji === ACCEPTED_DICE_EMOJI;
+}
+
+export function isValidDiceValue(value: number): boolean {
+  return Number.isInteger(value) && value >= DICE_VALUE_MIN && value <= DICE_VALUE_MAX;
+}
+
+// ─── Types ──────────────────────────────────────────────────────────────────
+
 export type TelegramCommandType = "start" | "help";
 
 export type TelegramCommandResult =
@@ -114,6 +139,14 @@ export class TelegramWebhookService {
 
   detectDiceRoll(update: TelegramUpdate): TelegramDiceResult {
     if (!update.message?.dice) {
+      return { kind: "not_dice" };
+    }
+
+    if (!isAcceptedDiceEmoji(update.message.dice.emoji)) {
+      return { kind: "not_dice" };
+    }
+
+    if (!isValidDiceValue(update.message.dice.value)) {
       return { kind: "not_dice" };
     }
 

@@ -37,5 +37,5 @@ pnpm-debug.log*
 .DS_Store
 Thumbs.db
 
-# Optional old/temporary agent artifacts
+# Old agent artifacts
 -p/

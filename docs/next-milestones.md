@@ -8,22 +8,13 @@
 
 Цель: получить состояние “можно начинать реальную интеграцию”, не ломая финансовую безопасность.
 
-### 0.1 Telegram integration readiness (без Telegram API)
-- Утвердить **idempotency key** формат для Telegram update processing.
-- Утвердить модель **Telegram identity → User**:
-  - источник: `from.id` (предпочтительно) + как вести audit trail
-  - политика смены username/displayName.
-- Утвердить “active game lookup”:
-  - один активный матч или несколько
-  - как матч выбирается по dice-event (chat/message/thread).
-- Утвердить правила dice:
-  - принимаемые emoji
-  - допустимые значения/кол-во бросков
-  - политика tie/reroll.
-- Утвердить таймауты:
-  - `WAITING` join timeout
-  - `ROLLING` / `RESOLVING` timeout
-  - refund policy и кто триггерит.
+### 0.1 Telegram integration readiness (РЕШЕНО — см. [milestone-0.1-decisions.md](./milestone-0.1-decisions.md))
+- **idempotency key**: `tg:update:<update_id>` + производные ключи.
+- **Telegram identity → User**: `from.id` как primary identity, username обновляется при каждом update.
+- **Active game lookup**: один активный матч на пользователя, поиск по `GamePlayer`.
+- **Правила dice**: только , значения 1–6, tie → reroll.
+- **Таймауты**: WAITING=10мин, ROLLING=5мин, RESOLVING=2мин. Refund через background job.
+- **Код**: `telegram-webhook-handler.ts` + `route.ts` реализованы.
 
 ### 0.2 Admin security readiness
 - Выбрать минимальную схему защиты admin:
@@ -55,7 +46,7 @@
 - Store of raw Telegram payload для аудита
 - Набор unit/integration тестов для идемпотентности и state machine.
 
-## Milestone 2: Postgres/Supabase (после Telegram)
+## Milestone 2: Postgres/Supabase (после Telegram) — [план](./milestone-2-postgres-plan.md)
 
 - Перевод datasource на Postgres
 - Миграции и проверки invariants
