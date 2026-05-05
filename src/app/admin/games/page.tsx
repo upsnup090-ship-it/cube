@@ -1,6 +1,8 @@
 import Link from "next/link";
 import prisma from "@/server/db/prisma";
 
+export const dynamic = "force-dynamic";
+
 export default async function AdminGamesPage() {
   const games = await prisma.game.findMany({
     orderBy: { createdAt: "desc" },
@@ -23,9 +25,10 @@ export default async function AdminGamesPage() {
     <main className="p-8">
       <div className="mb-4 flex items-center justify-between">
         <h1 className="text-2xl font-bold">Admin Games</h1>
-        <Link href="/admin" className="text-sm text-blue-700 hover:underline">
-          Back to overview
-        </Link>
+        <div className="flex gap-4">
+          <Link href="/admin/risk" className="text-sm text-orange-600 hover:underline">Risk &amp; Review</Link>
+          <Link href="/admin" className="text-sm text-blue-700 hover:underline">Back to overview</Link>
+        </div>
       </div>
 
       {games.length === 0 ? (
@@ -50,7 +53,9 @@ export default async function AdminGamesPage() {
             <tbody>
               {games.map((game) => (
                 <tr key={game.id} className="border-t">
-                  <td className="px-3 py-2">{game.id}</td>
+                  <td className="px-3 py-2">
+                    <Link href={`/admin/games/${game.id}`} className="text-blue-700 hover:underline">{game.id}</Link>
+                  </td>
                   <td className="px-3 py-2">{game.publicCode}</td>
                   <td className="px-3 py-2">{game.creatorUserId}</td>
                   <td className="px-3 py-2">{game.opponentUserId ?? "-"}</td>

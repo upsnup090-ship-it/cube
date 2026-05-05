@@ -35,7 +35,7 @@ export function isValidDiceValue(value: number): boolean {
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
-export type TelegramCommandType = "start" | "help" | "play" | "join" | "cancel";
+export type TelegramCommandType = "start" | "help" | "play" | "join" | "cancel" | "balance";
 
 export type TelegramCommandResult =
   | { kind: "command"; command: TelegramCommandType; args: string[]; message: TelegramMessage }
@@ -199,6 +199,9 @@ export class TelegramWebhookService {
     }
     if (cmd === "/cancel") {
       return { kind: "command", command: "cancel", args: [], message };
+    }
+    if (cmd === "/balance") {
+      return { kind: "command", command: "balance", args: [], message };
     }
 
     return { kind: "unknown_text", text: message.text, message };

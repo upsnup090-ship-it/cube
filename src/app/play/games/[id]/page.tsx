@@ -3,6 +3,8 @@ import { notFound } from "next/navigation";
 import prisma from "@/server/db/prisma";
 import { GameSandboxActions } from "./_components/GameSandboxActions";
 
+export const dynamic = "force-dynamic";
+
 function formatJson(value: unknown): string {
   try {
     return JSON.stringify(value, null, 2);

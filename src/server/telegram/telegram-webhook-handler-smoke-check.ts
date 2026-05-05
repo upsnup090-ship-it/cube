@@ -30,7 +30,7 @@ async function main() {
       date: 1710000000, dice: { emoji: "🎲", value: 5 },
     },
   };
-  const r1 = await telegramWebhookHandler.handleUpdate(dicePayload);
+  void (await telegramWebhookHandler.handleUpdate(dicePayload));
   const r2 = await telegramWebhookHandler.handleUpdate(dicePayload);
   add("Duplicate update returns duplicate", r2.status === "duplicate", `status=${r2.status}`);
 
@@ -97,8 +97,96 @@ async function main() {
   const r9 = await telegramWebhookHandler.handleUpdate(unknownText);
   add("Unknown text ignored", r9.status === "ignored", `status=${r9.status}`);
 
+  // ── 9. /balance command ──
+  const balancePayload = {
+    update_id: 999008,
+    message: {
+      message_id: 2007, from: { id: 999, username: "test_user" }, chat: { id: 500 },
+      date: 1710000006, text: "/balance",
+    },
+  };
+  const r10 = await telegramWebhookHandler.handleUpdate(balancePayload);
+  add("Command /balance handled", r10.status === "ok", `status=${r10.status}`);
+
+  // ── 10. /play without args rejected ──
+  const playNoArgs = {
+    update_id: 999009,
+    message: {
+      message_id: 2008, from: { id: 999, username: "test_user" }, chat: { id: 500 },
+      date: 1710000007, text: "/play",
+    },
+  };
+  const r11 = await telegramWebhookHandler.handleUpdate(playNoArgs);
+  add("Command /play without args ignored", r11.status === "ignored", `status=${r11.status}`);
+
+  // ── 11. /play with valid args creates game ──
+  const playValid = {
+    update_id: 999010,
+    message: {
+      message_id: 2009, from: { id: 999, username: "test_user" }, chat: { id: 500 },
+      date: 1710000008, text: "/play 100",
+    },
+  };
+  const r12 = await telegramWebhookHandler.handleUpdate(playValid);
+  add("Command /play creates game", r12.status === "ok", `status=${r12.status}, action=${r12.status === "ok" ? r12.action : ""}`);
+
+  // ── 12. /play again while game active is rejected ──
+  const playAgain = {
+    update_id: 999011,
+    message: {
+      message_id: 2010, from: { id: 999, username: "test_user" }, chat: { id: 500 },
+      date: 1710000009, text: "/play 100",
+    },
+  };
+  const r13 = await telegramWebhookHandler.handleUpdate(playAgain);
+  add("Command /play rejected when already has active game", r13.status === "ignored", `status=${r13.status}`);
+
+  // ── 13. /cancel cancels waiting game ──
+  const cancelPayload = {
+    update_id: 999012,
+    message: {
+      message_id: 2011, from: { id: 999, username: "test_user" }, chat: { id: 500 },
+      date: 1710000010, text: "/cancel",
+    },
+  };
+  const r14 = await telegramWebhookHandler.handleUpdate(cancelPayload);
+  add("Command /cancel cancels waiting game", r14.status === "ok", `status=${r14.status}`);
+
+  // ── 14. /join without code rejected ──
+  const joinNoCode = {
+    update_id: 999013,
+    message: {
+      message_id: 2012, from: { id: 999, username: "test_user" }, chat: { id: 500 },
+      date: 1710000011, text: "/join",
+    },
+  };
+  const r15 = await telegramWebhookHandler.handleUpdate(joinNoCode);
+  add("Command /join without code ignored", r15.status === "ignored", `status=${r15.status}`);
+
+  // ── 15. Blocked user /play rejected via Telegram ──
+  const blockedTgUser = await prisma.user.upsert({
+    where: { telegramUserId: "99901" },
+    update: { status: "blocked" },
+    create: { telegramUserId: "99901", username: "blocked_tg", status: "blocked" },
+  });
+  await prisma.wallet.upsert({
+    where: { userId: blockedTgUser.id },
+    update: {},
+    create: { userId: blockedTgUser.id, availableBalance: 5000n, lockedBalance: 0n },
+  });
+  const blockedPlay = {
+    update_id: 999014,
+    message: {
+      message_id: 2013, from: { id: 99901, username: "blocked_tg" }, chat: { id: 501 },
+      date: 1710000012, text: "/play 100",
+    },
+  };
+  const r16 = await telegramWebhookHandler.handleUpdate(blockedPlay);
+  add("Blocked user /play ignored via Telegram", r16.status === "ignored", `status=${r16.status}`);
+
   // ── Cleanup ──
   await prisma.idempotencyKey.deleteMany({ where: { key: { startsWith: "tg:update:99900" } } });
+  await prisma.idempotencyKey.deleteMany({ where: { key: { startsWith: "tg:update:99901" } } });
   await prisma.$disconnect();
 
   const failed = checks.filter(c => !c.passed);

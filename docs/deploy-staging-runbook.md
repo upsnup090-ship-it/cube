@@ -111,8 +111,8 @@ npx prisma migrate deploy
 - Нет возможности пополнения/вывода реальных денег.
 - Нет интеграции с платёжными системами.
 - Нет gambling-механик с реальными ставками.
-- Admin panel — read-only, нет действий credit/debit/settle/refund.
-- `read-only-guard.ts` запрещает все POST/PUT/DELETE на admin-эндпоинтах.
+- Admin panel — `read-only-guard.ts` документирует контракт; write-операции (credit/debit/block) разрешены только через явно описанные Server Actions на `/admin/users/[id]`.
+- Прямые POST/PUT/DELETE на admin-маршруты (settle, bulk-actions и т.п.) запрещены guard-контрактом.
 
 **Для перехода в production с реальными деньгами:**
 
@@ -124,9 +124,13 @@ npx prisma migrate deploy
 ## Smoke-тесты
 
 ```bash
-npm run smoke:telegram-handler   # webhook handler (9 тестов)
-npm run smoke:telegram-api       # API client (4 теста)
-npm run smoke:admin-security     # admin security (17 тестов)
+npm run smoke:services           # GameService + WalletService (14 тестов)
+npm run smoke:telegram-handler   # webhook handler, все команды (15 тестов)
+npm run smoke:telegram           # парсинг/роутинг (9 тестов)
+npm run smoke:telegram-admin     # webhook admin API (4 теста)
+npm run smoke:admin-security     # admin security contract (17 тестов)
+npm run smoke:env                # env validation (6 тестов)
+# Всего: 65/65
 ```
 
 ## Откат

@@ -52,8 +52,8 @@ async function getOrCreateWallet(userId: number): Promise<Wallet> {
       data: {
         userId,
         currency: "COIN",
-        availableBalance: BigInt(0),
-        lockedBalance: BigInt(0),
+        availableBalance: 0n,
+        lockedBalance: 0n,
       },
     });
   }
@@ -494,6 +494,7 @@ export class WalletService {
           amount,
           currency: "COIN",
           idempotencyKey: params.idempotencyKey,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           metadata: (params.metadata ?? {}) as any,
         },
       });
@@ -580,6 +581,7 @@ export class WalletService {
           amount,
           currency: "COIN",
           idempotencyKey: params.idempotencyKey,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           metadata: (params.metadata ?? {}) as any,
         },
       });
@@ -739,6 +741,7 @@ export class WalletService {
           amount,
           currency: "COIN",
           idempotencyKey: params.idempotencyKey,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           metadata: (params.metadata ?? {}) as any,
         },
       });

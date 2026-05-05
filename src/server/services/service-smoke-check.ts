@@ -52,8 +52,8 @@ async function ensureDemoUsers(): Promise<DemoUsers> {
     create: {
       userId: creator.id,
       currency: "COIN",
-      availableBalance: BigInt(0),
-      lockedBalance: BigInt(0),
+      availableBalance: 0n,
+      lockedBalance: 0n,
     },
   });
 
@@ -63,8 +63,8 @@ async function ensureDemoUsers(): Promise<DemoUsers> {
     create: {
       userId: opponent.id,
       currency: "COIN",
-      availableBalance: BigInt(0),
-      lockedBalance: BigInt(0),
+      availableBalance: 0n,
+      lockedBalance: 0n,
     },
   });
 
@@ -246,6 +246,64 @@ async function main() {
       insufficientLockRejected = message.includes("Insufficient available balance");
     }
     addResult("Insufficient balance lock is rejected", insufficientLockRejected, "lockEscrow rejected oversized lock");
+
+    // User status enforcement
+    const blockedUser = await prisma.user.upsert({
+      where: { telegramUserId: "smoke_blocked_001" },
+      update: { status: "blocked" },
+      create: {
+        telegramUserId: "smoke_blocked_001",
+        username: "smoke_blocked",
+        displayName: "Smoke Blocked",
+        status: "blocked",
+      },
+    });
+    await prisma.wallet.upsert({
+      where: { userId: blockedUser.id },
+      update: {},
+      create: { userId: blockedUser.id, currency: "COIN", availableBalance: 5000n, lockedBalance: 0n },
+    });
+
+    let blockedCreateRejected = false;
+    try {
+      await gameService.createGame({
+        creatorUserId: blockedUser.id,
+        betAmount: 100n,
+        diceCount: 1,
+        idempotencyKey: key("blocked:create"),
+      });
+    } catch (e) {
+      blockedCreateRejected = e instanceof Error && e.message.includes("blocked");
+    }
+    addResult("Blocked user cannot create game", blockedCreateRejected, "createGame rejected blocked user");
+
+    const reviewUser = await prisma.user.upsert({
+      where: { telegramUserId: "smoke_review_001" },
+      update: { status: "under_review" },
+      create: {
+        telegramUserId: "smoke_review_001",
+        username: "smoke_review",
+        displayName: "Smoke Review",
+        status: "under_review",
+      },
+    });
+    await prisma.wallet.upsert({
+      where: { userId: reviewUser.id },
+      update: {},
+      create: { userId: reviewUser.id, currency: "COIN", availableBalance: 5000n, lockedBalance: 0n },
+    });
+
+    let reviewJoinRejected = false;
+    try {
+      await gameService.joinGame({
+        gameId: createdGame.id,
+        opponentUserId: reviewUser.id,
+        idempotencyKey: key("review:join"),
+      });
+    } catch (e) {
+      reviewJoinRejected = e instanceof Error && e.message.includes("under review");
+    }
+    addResult("Under-review user cannot join game", reviewJoinRejected, "joinGame rejected under_review user");
   } catch (error) {
     hasFatalFailure = true;
     const message = error instanceof Error ? error.message : String(error);

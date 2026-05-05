@@ -24,6 +24,17 @@ type CancelWaitingGameParams = {
   idempotencyKey: string;
 };
 
+type RefundExpiredGameParams = {
+  gameId: number;
+  idempotencyKey: string;
+};
+
+type ProcessExpiredGamesResult = {
+  expiredRefunded: number;
+  stuckFlagged: number;
+  failed: number;
+};
+
 type RecordRollParams = {
   gameId: number;
   userId: number;
@@ -138,7 +149,23 @@ export class GameService {
     });
   }
 
+  private async assertUserCanPlay(userId: number, action: "create" | "join"): Promise<void> {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { status: true },
+    });
+    if (!user) throw new Error(`User ${userId} not found`);
+    if (user.status === "blocked") {
+      throw new Error(`User ${userId} is blocked and cannot ${action} a game`);
+    }
+    if (user.status === "under_review") {
+      throw new Error(`User ${userId} is under review and cannot ${action} a game`);
+    }
+  }
+
   async createGame(params: CreateGameParams) {
+    await this.assertUserCanPlay(params.creatorUserId, "create");
+
     const betAmount = toBigInt(params.betAmount);
     if (betAmount <= 0n) throw new Error("Bet amount must be greater than zero");
     if (params.diceCount !== 1 && params.diceCount !== 2) {
@@ -260,6 +287,8 @@ export class GameService {
   }
 
   async joinGame(params: JoinGameParams) {
+    await this.assertUserCanPlay(params.opponentUserId, "join");
+
     if (!params.gameId && !params.publicCode) {
       throw new Error("Either gameId or publicCode is required");
     }
@@ -850,6 +879,133 @@ export class GameService {
       throw error;
     }
   }
+
+  async refundExpiredGame(params: RefundExpiredGameParams) {
+    const existingResourceId = await this.getIdempotentResource(params.idempotencyKey, "refund_expired_game");
+    if (existingResourceId) {
+      return prisma.game.findUniqueOrThrow({ where: { id: Number(existingResourceId) } });
+    }
+
+    await prisma.idempotencyKey.create({
+      data: {
+        key: params.idempotencyKey,
+        operation: "refund_expired_game",
+        resourceType: "game",
+        resourceId: String(params.gameId),
+      },
+    }).catch((error: unknown) => {
+      if (!isUniqueError(error)) throw error;
+    });
+
+    const game = await prisma.game.findUnique({ where: { id: params.gameId } });
+    if (!game) throw new Error("Game not found");
+    if (game.status !== GameStatus.waiting) {
+      throw new Error(`Game is not in waiting state (current: ${game.status})`);
+    }
+    if (game.opponentUserId !== null) {
+      throw new Error("Game already has opponent — cannot refund as expired");
+    }
+    if (game.expiresAt > new Date()) {
+      throw new Error("Game has not expired yet");
+    }
+
+    await walletService.refund({
+      userId: game.creatorUserId,
+      gameId: game.id,
+      amount: game.betAmount,
+      idempotencyKey: `game:refund_expired:${params.idempotencyKey}:creator_refund`,
+      metadata: { gameId: game.id, reason: "expired_waiting_game" },
+    });
+
+    await prisma.$transaction(async (tx) => {
+      await tx.game.update({
+        where: { id: game.id },
+        data: { status: GameStatus.refunded, resultReason: "expired_no_opponent" },
+      });
+      await tx.auditLog.create({
+        data: {
+          actorType: "system",
+          actorId: "system",
+          action: "refund_game",
+          resourceType: "game",
+          resourceId: String(game.id),
+          metadata: { idempotencyKey: params.idempotencyKey, reason: "expired_waiting_game", refundApplied: true },
+        },
+      });
+      await tx.idempotencyKey.update({
+        where: { key: params.idempotencyKey },
+        data: { resourceId: String(game.id) },
+      });
+    });
+
+    return prisma.game.findUniqueOrThrow({ where: { id: game.id } });
+  }
+
+  async processExpiredGames(): Promise<ProcessExpiredGamesResult> {
+    const now = new Date();
+    let expiredRefunded = 0;
+    let stuckFlagged = 0;
+    let failed = 0;
+
+    // 1. Find and refund expired WAITING games
+    const expiredGames = await prisma.game.findMany({
+      where: {
+        status: GameStatus.waiting,
+        expiresAt: { lt: now },
+        opponentUserId: null,
+      },
+      select: { id: true },
+    });
+
+    for (const { id } of expiredGames) {
+      try {
+        await this.refundExpiredGame({
+          gameId: id,
+          idempotencyKey: `job:refund_expired:${id}:${Math.floor(now.getTime() / 60_000)}`,
+        });
+        expiredRefunded++;
+      } catch {
+        failed++;
+      }
+    }
+
+    // 2. Flag stuck ROLLING/RESOLVING games as under_review
+    const stuckCutoff = new Date(now.getTime() - 30 * 60 * 1000);
+    const stuckGames = await prisma.game.findMany({
+      where: {
+        status: { in: [GameStatus.rolling, GameStatus.resolving] },
+        updatedAt: { lt: stuckCutoff },
+      },
+      select: { id: true, status: true },
+    });
+
+    for (const { id, status } of stuckGames) {
+      try {
+        await prisma.$transaction(async (tx) => {
+          await tx.game.update({
+            where: { id, status },
+            data: { status: GameStatus.under_review, resultReason: "stuck_game_flagged_by_job" },
+          });
+          await tx.auditLog.create({
+            data: {
+              actorType: "system",
+              actorId: "system",
+              action: "flag_stuck_game",
+              resourceType: "game",
+              resourceId: String(id),
+              metadata: { previousStatus: status, reason: "stuck_rolling_resolving", stuckCutoff: stuckCutoff.toISOString() },
+            },
+          });
+        });
+        stuckFlagged++;
+      } catch {
+        failed++;
+      }
+    }
+
+    return { expiredRefunded, stuckFlagged, failed };
+  }
 }
 
 export const gameService = new GameService();
+

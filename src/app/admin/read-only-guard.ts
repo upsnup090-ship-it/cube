@@ -71,7 +71,7 @@ export const ADMIN_READ_ONLY_CONTRACT: ReadOnlyContract = {
   ],
   forbiddenActions: [
     'POST /admin/users/:id/credit',
-    'POST /admin/users/:id/debit', 
+    'POST /admin/users/:id/debit',
     'POST /admin/users/:id/block',
     'POST /admin/users/:id/unblock',
     'POST /admin/users/:id/update-status',
@@ -85,14 +85,18 @@ export const ADMIN_READ_ONLY_CONTRACT: ReadOnlyContract = {
     'POST /admin/bulk-actions'
   ],
   allowedActions: [
-    'GET /admin',           // Получение статистики
-    'GET /admin/users',     // Получение списка пользователей
-    'GET /admin/users/:id', // Получение деталей пользователя
-    'GET /admin/wallets',   // Получение списка кошельков
-    'GET /admin/games',     // Получение списка игр
-    'GET /admin/games/:id', // Получение деталей игры
-    'GET /admin/ledger',    // Получение журнала операций
-    'GET /admin/audit'      // Получение аудит логов
+    'GET /admin',                        // Получение статистики
+    'GET /admin/users',                  // Получение списка пользователей
+    'GET /admin/users/:id',              // Получение деталей пользователя
+    'POST /admin/users/:id/credit',      // Ручное пополнение баланса
+    'POST /admin/users/:id/debit',       // Ручное списание баланса
+    'POST /admin/users/:id/status',      // Изменение статуса пользователя
+    'GET /admin/wallets',                // Получение списка кошельков
+    'GET /admin/games',                  // Получение списка игр
+    'GET /admin/games/:id',              // Получение деталей игры
+    'GET /admin/ledger',                 // Получение журнала операций
+    'GET /admin/audit',                  // Получение аудит логов
+    'GET /admin/risk'                    // Risk & Review страница
   ]
 };
 
@@ -100,15 +104,15 @@ export const ADMIN_READ_ONLY_CONTRACT: ReadOnlyContract = {
  * Проверяет, разрешен ли доступ к странице в read-only режиме
  */
 export function isReadOnlyPage(path: string, method: string): boolean {
-  const route = ADMIN_READ_ONLY_CONTRACT.allowedPages.find(page => 
+  const route = ADMIN_READ_ONLY_CONTRACT.allowedPages.find(page =>
     path === page.path || (page.path.includes(':id') && path.startsWith(page.path.split('/:id')[0]))
   );
-  
+
   if (!route) {
     return false; // Неизвестная страница
   }
-  
-  return route.readOnly && route.allowedMethods.includes(method as any);
+
+  return route.readOnly && route.allowedMethods.includes(method as 'GET' | 'POST' | 'PUT' | 'DELETE');
 }
 
 /**

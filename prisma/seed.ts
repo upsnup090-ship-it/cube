@@ -1,5 +1,6 @@
 import { PrismaClient, LedgerEntryType, LedgerDirection } from "../src/generated/prisma";
-import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
+import { PrismaPg } from "@prisma/adapter-pg";
+import pg from "pg";
 
 /**
  * Development seed script.
@@ -11,12 +12,21 @@ import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
  * The script is idempotent – it uses `upsert` for users and wallets and
  * `upsert` for ledger entries keyed by a stable `idempotencyKey`. Running the
  * script multiple times will not duplicate any records.
+ *
+ * Requires DATABASE_URL or DIRECT_URL pointing to a Postgres instance.
  */
 
-const adapter = new PrismaBetterSqlite3({
-  url: "file:./dev.db",
-});
-const prisma = new PrismaClient({ adapter });
+function createPrismaClient(): PrismaClient {
+  const pgUrl = process.env.DATABASE_URL || process.env.DIRECT_URL;
+  if (!pgUrl) {
+    throw new Error("DATABASE_URL or DIRECT_URL is required to run seed.");
+  }
+  const pool = new pg.Pool({ connectionString: pgUrl });
+  const adapter = new PrismaPg(pool);
+  return new PrismaClient({ adapter } as never);
+}
+
+const prisma = createPrismaClient();
 
 // Demo configuration – can be adjusted for local testing.
 const DEMO_BALANCE = 1_000n; // using BigInt as defined in the schema
