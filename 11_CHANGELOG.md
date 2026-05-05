@@ -39,6 +39,11 @@
 - `docs/next-milestones.md` — обновлены статусы, ссылки на решения
 - `.windsurf/rules/03-workflow-policy.md` — правило: держать доку в sync с кодом
 - `package.json` — скрипты `smoke:telegram-handler`, `smoke:telegram-api`
+- `src/server/telegram/telegram-webhook-handler.ts` — idempotency key теперь резервируется до side-effects, чтобы исключить двойную обработку гонок
+- `src/server/services/game-service.ts` — settlement переведён на модель: возврат escrow победителю + net stake проигравшего - configurable commission
+- `src/server/services/wallet-service.ts` — добавлены отдельные wallet-операции для consume locked escrow, rake collection и commission credit
+- `src/server/config/env-validation.ts` — добавлены optional env vars `GAME_COMMISSION_BPS` и `GAME_COMMISSION_RECIPIENT_TELEGRAM_USER_ID`
+- `src/server/services/service-smoke-check.ts` — smoke-проверка settlement теперь валидирует комиссию и баланс winner/loser/recipient
 
 ### Removed
 - `src/server/services/telegram/` — удалён плохой дубликат
