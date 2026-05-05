@@ -26,8 +26,6 @@
   "exclude": [
     "node_modules",
     "cube-main",
-    "repo",
-    "src/middleware.ts",
-    "src/app/admin/read-only-guard.ts"
+    "repo"
   ]
 }

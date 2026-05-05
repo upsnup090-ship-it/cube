@@ -13,6 +13,7 @@
     "smoke:telegram-handler": "tsx src/server/telegram/telegram-webhook-handler-smoke-check.ts",
     "smoke:telegram-api": "tsx src/server/telegram/telegram-api-smoke-check.ts",
     "smoke:telegram-admin": "tsx src/server/telegram/telegram-webhook-admin-smoke-check.ts",
+    "smoke:admin-security": "tsx src/server/admin/admin-security-smoke-check.ts",
     "telegram:webhook:set": "tsx src/server/telegram/telegram-webhook-admin.ts set",
     "telegram:webhook:info": "tsx src/server/telegram/telegram-webhook-admin.ts info",
     "telegram:webhook:delete": "tsx src/server/telegram/telegram-webhook-admin.ts delete",

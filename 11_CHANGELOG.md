@@ -15,6 +15,10 @@
 - `src/server/telegram/telegram-api-smoke-check.ts` — smoke-проверка Telegram API client без реального вызова API
 - `TELEGRAM_API_BASE_URL` — readiness для outbound Telegram API proxy/gateway
 - `TELEGRAM_PROXY_URL`, `TELEGRAM_PROXY_KIND`, `TRUST_PROXY` — зарезервированные env vars для будущего proxy policy
+- `middleware.ts` — HTTP Basic Auth для /admin (timing-safe, production fail-closed)
+- `src/app/admin/read-only-guard.ts` — read-only контракт админ-панели (7 страниц, запрещённые действия)
+- `docs/admin-security.md` — документация схемы защиты admin
+- `src/server/admin/admin-security-smoke-check.ts` — 17 тестов read-only контракта
 
 ### Changed
 - `telegram-webhook-service.ts` — добавлена фильтрация dice (🎲, 1-6), idempotency key builder
