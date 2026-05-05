@@ -19,6 +19,11 @@
 - `src/app/admin/read-only-guard.ts` — read-only контракт админ-панели (7 страниц, запрещённые действия)
 - `docs/admin-security.md` — документация схемы защиты admin
 - `src/server/admin/admin-security-smoke-check.ts` — 17 тестов read-only контракта
+- `prisma/schema.prisma` — переключён на postgresql с DATABASE_URL и DIRECT_URL
+- `src/server/db/prisma.ts` — убран SQLite адаптер, стандартный PrismaClient
+- `src/app/api/health/route.ts` — healthcheck API (SELECT 1, latency)
+- `src/app/api/health/db/route.ts` — invariant checks (balances >= 0, no self-play)
+- `docs/postgres-supabase-readiness.md` — документация перехода на Postgres
 
 ### Changed
 - `telegram-webhook-service.ts` — добавлена фильтрация dice (🎲, 1-6), idempotency key builder
