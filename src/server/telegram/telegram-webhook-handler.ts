@@ -9,6 +9,12 @@ import {
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
+function isUniqueError(error: unknown): boolean {
+  if (typeof error !== "object" || error === null) return false;
+  const candidate = error as { code?: string };
+  return candidate.code === "P2002";
+}
+
 export type WebhookHandlerResult =
   | { status: "ok"; action: string; updateId: number }
   | { status: "duplicate"; updateId: number }
@@ -50,12 +56,19 @@ export class TelegramWebhookHandler {
     const updateId = parsed.updateId;
     const idempotencyKey = buildTelegramIdempotencyKey(updateId);
 
-    // Step 2: Check idempotency
-    const existingKey = await prisma.idempotencyKey.findUnique({
-      where: { key: idempotencyKey },
+    const reserved = await prisma.idempotencyKey.create({
+      data: {
+        key: idempotencyKey,
+        operation: "telegram_webhook",
+        resourceType: "telegram_update",
+        resourceId: String(updateId),
+      },
+    }).then(() => true).catch((error: unknown) => {
+      if (isUniqueError(error)) return false;
+      throw error;
     });
 
-    if (existingKey) {
+    if (!reserved) {
       return { status: "duplicate", updateId };
     }
 
@@ -77,20 +90,6 @@ export class TelegramWebhookHandler {
         break;
       default:
         result = { status: "ignored", reason: "unhandled_kind", updateId };
-    }
-
-    // Step 6: Write idempotency key (only for successfully processed updates)
-    if (result.status === "ok" || result.status === "ignored") {
-      await prisma.idempotencyKey.create({
-        data: {
-          key: idempotencyKey,
-          operation: "telegram_webhook",
-          resourceType: "telegram_update",
-          resourceId: String(updateId),
-        },
-      }).catch(() => {
-        // Ignore duplicate key — race condition safe
-      });
     }
 
     return result;

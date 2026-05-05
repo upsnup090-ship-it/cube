@@ -16,6 +16,8 @@ type CheckResult = {
 
 const now = Date.now();
 const runKey = `smoke:${now}`;
+const commissionBps = Number.parseInt(process.env.GAME_COMMISSION_BPS ?? "50", 10);
+const commissionRecipientTelegramUserId = process.env.GAME_COMMISSION_RECIPIENT_TELEGRAM_USER_ID ?? "1093943977";
 
 function key(suffix: string): string {
   return `${runKey}:${suffix}`;
@@ -83,7 +85,10 @@ async function main() {
     const users = await ensureDemoUsers();
     addResult("Ensure demo users and wallets", true, `creator=${users.creatorId}, opponent=${users.opponentId}`);
 
-    const topUpAmount = 200n;
+    const topUpAmount = 2000n;
+    const betAmount = 1000n;
+    const expectedCommissionAmount = betAmount * BigInt(commissionBps) / 10_000n;
+    const expectedOpponentNetPayout = betAmount - expectedCommissionAmount;
     await walletService.manualCredit({
       userId: users.creatorId,
       amount: topUpAmount,
@@ -100,7 +105,7 @@ async function main() {
 
     const createdGame = await gameService.createGame({
       creatorUserId: users.creatorId,
-      betAmount: 50n,
+      betAmount,
       diceCount: 1,
       idempotencyKey: key("game:create"),
       timeoutMinutes: 15,
@@ -154,8 +159,23 @@ async function main() {
       throw new Error("Smoke flow expects non-tie deterministic rolls");
     }
 
+    const commissionRecipientBeforeUser = await prisma.user.findUnique({
+      where: { telegramUserId: commissionRecipientTelegramUserId },
+      select: { id: true },
+    });
+    const commissionWalletBefore = commissionRecipientBeforeUser
+      ? await prisma.wallet.findUnique({
+        where: { userId: commissionRecipientBeforeUser.id },
+        select: { availableBalance: true, lockedBalance: true },
+      })
+      : null;
+
     const beforeFirstSettle = await prisma.wallet.findUniqueOrThrow({
       where: { userId: resolved.winnerUserId },
+      select: { availableBalance: true, lockedBalance: true },
+    });
+    const loserBeforeFirstSettle = await prisma.wallet.findUniqueOrThrow({
+      where: { userId: resolved.loserUserId },
       select: { availableBalance: true, lockedBalance: true },
     });
 
@@ -168,6 +188,18 @@ async function main() {
       where: { userId: resolved.winnerUserId },
       select: { availableBalance: true, lockedBalance: true },
     });
+    const loserAfterFirstSettle = await prisma.wallet.findUniqueOrThrow({
+      where: { userId: resolved.loserUserId },
+      select: { availableBalance: true, lockedBalance: true },
+    });
+    const commissionRecipientAfterUser = await prisma.user.findUniqueOrThrow({
+      where: { telegramUserId: commissionRecipientTelegramUserId },
+      select: { id: true },
+    });
+    const commissionWalletAfterFirstSettle = await prisma.wallet.findUniqueOrThrow({
+      where: { userId: commissionRecipientAfterUser.id },
+      select: { availableBalance: true, lockedBalance: true },
+    });
 
     const settledTwice = await gameService.settleGame({
       gameId: createdGame.id,
@@ -178,16 +210,26 @@ async function main() {
       select: { availableBalance: true, lockedBalance: true },
     });
 
-    const firstSettleChangedBalance =
-      afterFirstSettle.availableBalance !== beforeFirstSettle.availableBalance ||
-      afterFirstSettle.lockedBalance !== beforeFirstSettle.lockedBalance;
+    const firstSettleWinnerDeltaCorrect =
+      afterFirstSettle.availableBalance - beforeFirstSettle.availableBalance
+        === betAmount + expectedOpponentNetPayout
+      && beforeFirstSettle.lockedBalance - afterFirstSettle.lockedBalance === betAmount;
+    const firstSettleLoserDeltaCorrect =
+      loserAfterFirstSettle.availableBalance === loserBeforeFirstSettle.availableBalance
+      && loserBeforeFirstSettle.lockedBalance - loserAfterFirstSettle.lockedBalance === betAmount;
+    const commissionBeforeAvailable = commissionWalletBefore?.availableBalance ?? 0n;
+    const firstSettleCommissionCorrect =
+      commissionWalletAfterFirstSettle.availableBalance - commissionBeforeAvailable === expectedCommissionAmount
+      && commissionWalletAfterFirstSettle.lockedBalance === (commissionWalletBefore?.lockedBalance ?? 0n);
     const secondSettleNoChange =
       afterSecondSettle.availableBalance === afterFirstSettle.availableBalance &&
       afterSecondSettle.lockedBalance === afterFirstSettle.lockedBalance &&
       settledOnce.status === "settled" &&
       settledTwice.status === "settled";
 
-    addResult("First settle applies state transition", firstSettleChangedBalance, "winner wallet changed once");
+    addResult("Settlement returns winner escrow plus net opponent stake", firstSettleWinnerDeltaCorrect, "winner delta matches commission model");
+    addResult("Settlement drains loser escrow without refund", firstSettleLoserDeltaCorrect, "loser available unchanged and locked drained");
+    addResult("Settlement credits commission recipient", firstSettleCommissionCorrect, `commission=${expectedCommissionAmount.toString()}`);
     addResult("Second settle with same key has no double payout", secondSettleNoChange, "wallet unchanged on repeat");
 
     let insufficientLockRejected = false;
