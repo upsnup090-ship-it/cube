@@ -1,3 +1,5 @@
+import "dotenv/config";
+
 import { getTelegramApiBaseUrl } from "./telegram-webhook-service";
 
 type WebhookAdminResult =
