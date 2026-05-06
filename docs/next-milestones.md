@@ -21,7 +21,7 @@
 
 **Цель:** живой staging на реальной Postgres с настоящим Telegram webhook.
 
-### 1.1 Postgres migration — 🔧 В процессе (код готов, ждём Supabase)
+### 1.1 Postgres migration — ✅ Готово
 - ✅ Сменён `provider` на `"postgresql"` в `prisma/schema.prisma`
 - ✅ Обновлён `prisma.config.ts` — `DIRECT_URL` для миграций, `DATABASE_URL` для runtime
 - ✅ Удалены старые SQLite-миграции, создана чистая Postgres-миграция `20260506_init_postgres`
@@ -30,8 +30,11 @@
 - ✅ `BigInt(0)` → `0n` в `wallet-service.ts` и `service-smoke-check.ts`
 - ✅ Установлены `@prisma/adapter-pg`, `pg`, `@types/pg`
 - ✅ `npm run build` + `npx tsc --noEmit` + `npm run lint` — 0 ошибок
-- ⏳ Требуется: создать Supabase проект, заполнить `.env` (DATABASE_URL + DIRECT_URL)
-- ⏳ После: `npx prisma migrate deploy` + `npm run prisma:seed` + smoke-тесты
+- ✅ Supabase проект создан и подключён через pooler URL
+- ✅ `npx prisma migrate deploy` — успешно, pending migrations нет
+- ✅ `npm run prisma:seed` — успешно
+- ✅ Локальный запуск проверен: `/play`, `/admin`, `/api/health`, `/api/health/db`
+- ✅ Smoke: services 14/14, telegram-handler 15/15, admin-security 17/17, env 6/6
 
 ### 1.2 Vercel/hosting deploy
 - Создать проект в Vercel (или другом хостинге)
@@ -89,7 +92,7 @@
 
 | Gap | Приоритет | Notes |
 |---|---|---|
-| Supabase проект + DATABASE_URL | Высокий | Код готов, нужен инстанс |
+| Telegram webhook через tunnel | Высокий | Следующий шаг для проверки реального bot flow локально |
 | Vitest unit tests | Средний | Smoke checks покрывают критические пути |
 | Admin rate limiting | Средний | Перед публичным staging |
 | Cron для refund job | Средний | Сейчас только manual POST |

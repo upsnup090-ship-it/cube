@@ -20,10 +20,10 @@
 | Файл | Описание |
 |---|---|
 | `prisma/schema.prisma` | Схема: User, Wallet, Game, GamePlayer, DiceRoll, LedgerEntry, AuditLog, IdempotencyKey. `provider = "postgresql"` |
-| `prisma/migrations/20260506_init_postgres/` | Чистая Postgres-миграция (enum'ы, SERIAL, BIGINT, JSONB) |
-| `prisma/seed.ts` | Idempotent seed: 3 demo-пользователя × 1000 COIN. Требует DATABASE_URL |
-| `prisma.config.ts` | Datasource: `DIRECT_URL ?? DATABASE_URL` (Prisma CLI для миграций) |
-| `src/server/db/prisma.ts` | Lazy Proxy + `@prisma/adapter-pg` для Postgres. DATABASE_URL обязателен |
+| `prisma/migrations/20260506_init_postgres/` | Чистая Postgres-миграция (CREATE TYPE enum'ы, SERIAL, BIGINT, JSONB), применена к Supabase |
+| `prisma/seed.ts` | Idempotent seed: 3 demo-пользователя × 1000 COIN. Проверен на Supabase |
+| `prisma.config.ts` | Datasource: `DIRECT_URL ?? DATABASE_URL` (Prisma CLI для миграций). Для Supabase локально используется session pooler `:5432` |
+| `src/server/db/prisma.ts` | Lazy Proxy + `@prisma/adapter-pg` для Postgres. Загружает `.env` для standalone smoke scripts |
 | `src/generated/prisma/` | Сгенерированный клиент |
 
 ### Services (ядро)
@@ -109,6 +109,10 @@ npm run telegram:webhook:delete # Удалить webhook
 ## Локальный запуск
 
 > **Требуется Postgres** (Supabase или другой). SQLite больше не поддерживается.
+>
+> Текущий локальный setup проверен с Supabase pooler:
+> - `DATABASE_URL` — transaction pooler `:6543`
+> - `DIRECT_URL` — session pooler `:5432`
 
 ```bash
 # 1. Установить зависимости
@@ -130,7 +134,19 @@ npm run smoke:services && npm run smoke:telegram-handler
 npm run dev
 # → http://localhost:3000/play   (sandbox UI)
 # → http://localhost:3000/admin  (admin dashboard)
+# → http://localhost:3000/api/health
+# → http://localhost:3000/api/health/db
 ```
+
+Последняя проверка:
+- `npx prisma migrate deploy` — pending migrations нет
+- `npm run prisma:seed` — успешно
+- `npm run smoke:services` — 14/14 PASS
+- `npm run smoke:telegram-handler` — 15/15 PASS
+- `npm run smoke:admin-security` — 17/17 PASS
+- `npm run smoke:env` — 6/6 PASS
+- `/api/health` — `status=ok`, `db=connected`
+- `/api/health/db` — invariant checks passed
 
 ---
 

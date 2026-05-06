@@ -2,6 +2,22 @@
 
 ## [2026-05-06] — v0.1.14 Postgres Migration (Milestone 1.1)
 
+### Completed
+- Supabase project connected through pooler URLs:
+  - `DATABASE_URL` — transaction pooler (`:6543`) for app runtime
+  - `DIRECT_URL` — session pooler (`:5432`) for Prisma CLI migrations
+- `npx prisma migrate deploy` applied `20260506_init_postgres` successfully.
+- `npm run prisma:seed` executed successfully against Supabase.
+- Local dev server confirmed with Supabase:
+  - `GET /api/health` → `{"status":"ok","db":"connected"}`
+  - `GET /api/health/db` → all invariant checks passed
+  - `/play` renders
+  - `/admin` renders
+
+### Fixed
+- `prisma/migrations/20260506_init_postgres/migration.sql` — added missing Postgres `CREATE TYPE ... AS ENUM` statements before table creation.
+- `src/server/db/prisma.ts` — added `import "dotenv/config"` so standalone `tsx` smoke scripts load `.env`.
+
 ### Changed
 - `prisma/schema.prisma` — `provider = "postgresql"` (было `"sqlite"`). URL/directUrl убраны из schema (Prisma 7.x требует их в `prisma.config.ts`).
 - `prisma.config.ts` — `datasource.url` использует `DIRECT_URL ?? DATABASE_URL ?? ""` (Prisma CLI для миграций).
@@ -26,10 +42,11 @@ npx prisma validate  → schema is valid 🚀
 npx tsc --noEmit      → 0 errors
 npm run build         → Exit code: 0
 npm run lint          → 0 errors
+npm run smoke:services         → 14/14 PASS
+npm run smoke:telegram-handler → 15/15 PASS
+npm run smoke:admin-security   → 17/17 PASS
+npm run smoke:env              → 6/6 PASS
 ```
-
-### Blocked by
-- Требуется Supabase/Postgres инстанс с `DATABASE_URL` + `DIRECT_URL` в `.env` для `npx prisma migrate deploy`.
 
 ## [2026-05-06] — v0.1.13 Prisma SQLite-only + Health Endpoint Fix
 
