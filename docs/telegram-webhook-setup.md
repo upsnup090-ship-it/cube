@@ -117,7 +117,15 @@ Invoke-RestMethod -Method Post "https://api.telegram.org/bot$env:TELEGRAM_BOT_TO
 
 ## Local testing with tunnel
 
-Для локального тестирования нужен публичный HTTPS tunnel, например ngrok:
+Подробный локальный сценарий зафиксирован в `docs/telegram-local-testing.md`.
+
+Для локального тестирования нужен публичный HTTPS tunnel. Текущий рабочий вариант — localtunnel:
+
+```powershell
+npx --yes localtunnel --port 3000
+```
+
+Также можно использовать ngrok:
 
 ```powershell
 ngrok http 3000

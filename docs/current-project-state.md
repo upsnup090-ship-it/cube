@@ -14,6 +14,22 @@
 
 ---
 
+## Текущий режим
+
+Проект сейчас в режиме **LOCAL MVP DEV**:
+
+- локальный Next.js dev server;
+- Supabase как удалённая dev-БД;
+- Telegram webhook через локальный HTTPS tunnel;
+- production deploy на сервер/VPS/Vercel отложен до полной обкатки механики.
+
+См.:
+- `docs/LOCAL_DEV.md`
+- `docs/architecture-layers.md`
+- `docs/telegram-local-testing.md`
+
+---
+
 ## Карта кода (основное)
 
 ### Prisma / DB

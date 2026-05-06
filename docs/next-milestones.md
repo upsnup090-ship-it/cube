@@ -43,10 +43,11 @@
 - Проверить `GET /api/health`
 
 ### 1.3 Telegram webhook setup
-- Зарегистрировать реальный бот в BotFather
+- Локально подключить реальный bot token из BotFather
+- Поднять localtunnel к `localhost:3000`
 - Запустить `npm run telegram:webhook:set`
 - Проверить `npm run telegram:webhook:info`
-- Сделать тестовый `/start` в боте
+- Пройти сценарий из `docs/telegram-local-testing.md`
 
 ### 1.4 Smoke on staging
 - Прогнать `npm run smoke:services` против staging DB (только через локальный `tsx`)
