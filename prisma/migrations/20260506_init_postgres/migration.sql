@@ -1,3 +1,24 @@
+-- CreateEnum
+CREATE TYPE "UserStatus" AS ENUM ('active', 'blocked', 'under_review');
+
+-- CreateEnum
+CREATE TYPE "LedgerEntryType" AS ENUM ('admin_credit', 'admin_debit', 'escrow_lock', 'escrow_release', 'payout_credit', 'refund_credit', 'rake_debit', 'adjustment');
+
+-- CreateEnum
+CREATE TYPE "LedgerDirection" AS ENUM ('debit', 'credit');
+
+-- CreateEnum
+CREATE TYPE "GameStatus" AS ENUM ('created', 'waiting', 'matched', 'rolling', 'resolving', 'settled', 'cancelled', 'refunded', 'failed', 'under_review');
+
+-- CreateEnum
+CREATE TYPE "PlayerRole" AS ENUM ('creator', 'opponent');
+
+-- CreateEnum
+CREATE TYPE "DiceRollSource" AS ENUM ('telegram_dice', 'admin_test', 'system_test');
+
+-- CreateEnum
+CREATE TYPE "ActorType" AS ENUM ('system', 'admin', 'user', 'telegram_webhook');
+
 -- CreateTable
 CREATE TABLE "User" (
     "id" SERIAL NOT NULL,
